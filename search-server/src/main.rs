@@ -1,5 +1,5 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use meilisearch_sdk::{client::*, document::*, errors::Error, search::SearchResults};
+use meilisearch_sdk::{client::*, document::*, errors::Error, search::*};
 use serde::{Deserialize, Serialize};
 use std::boxed::Box;
 use std::sync::{Arc, Mutex};
@@ -8,8 +8,28 @@ use std::{fs::File, io::prelude::*};
 #[derive(Serialize, Deserialize, Debug)]
 struct Entry {
     id: String,
-    #[serde(flatten)]
-    value: serde_json::Value,
+    title: String,
+    description: String,
+    day: String,
+    privacy: bool,
+    links: Vec<String>,
+    tags: Vec<String>,
+    images: Vec<String>,
+}
+
+impl Clone for Entry {
+    fn clone(&self) -> Self {
+        Entry {
+            id: self.id.clone(),
+            title: self.title.clone(),
+            description: self.description.clone(),
+            day: self.day.clone(),
+            privacy: self.privacy,
+            links: self.links.clone(),
+            tags: self.tags.clone(),
+            images: self.images.clone(),
+        }
+    }
 }
 
 impl Document for Entry {
@@ -22,6 +42,35 @@ impl Document for Entry {
 #[derive(Serialize, Deserialize, Debug)]
 struct SearchQuery {
     query: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct QueryResponse {
+    hits: Vec<Entry>,
+    processing_time_ms: usize,
+    offset: usize,
+    limit: usize,
+    nb_hits: usize,
+    exhaustive_nb_hits: bool,
+}
+
+impl QueryResponse {
+    fn new(results: SearchResults<Entry>) -> Self {
+        let hits = results
+            .hits
+            .iter()
+            .map(|x| x.result.clone())
+            .collect::<Vec<Entry>>();
+
+        Self {
+            hits,
+            processing_time_ms: results.processing_time_ms,
+            offset: results.offset,
+            limit: results.limit,
+            nb_hits: results.nb_hits,
+            exhaustive_nb_hits: results.exhaustive_nb_hits,
+        }
+    }
 }
 
 struct AppState<'a> {
@@ -64,15 +113,15 @@ async fn hello() -> impl Responder {
 async fn search<'a>(
     info: web::Query<SearchQuery>,
     data: web::Data<AppState<'a>>,
-) -> impl Responder {
-    println!("You reached search!");
-    println!("{:?}", info);
+) -> std::io::Result<HttpResponse> {
     let c_client = &data.clone().client;
 
     let arc_client = &c_client.clone();
+
     let client = arc_client.lock().unwrap();
 
     let index = client.get_index("entries").await.unwrap();
+
     let results: SearchResults<Entry> = index
         .search()
         .with_query(&info.0.query)
@@ -80,9 +129,9 @@ async fn search<'a>(
         .await
         .unwrap();
 
-    println!("{:?}", results);
+    let response = QueryResponse::new(results);
 
-    HttpResponse::Ok().body(results.query)
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[actix_web::main]
@@ -102,8 +151,8 @@ async fn main() -> std::io::Result<()> {
             // This server also works as a proxy that severely limits
             // the requests that can be made to the meilie server
             match seed_ms(&ms_client).await {
-                Ok(keys) => {
-                    println!("{:?} {:?}", keys.0, keys.1);
+                Ok(_) => {
+                    // println!("{:?} {:?}", keys.0, keys.1);
                     println!("Happy Hacking");
                 }
                 Err(why) => println!("{:?}", why),
