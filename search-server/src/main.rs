@@ -1,10 +1,16 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer};
+use actix_cors::Cors;
+use actix_web::{
+    dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse, HttpServer,
+};
+use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
 use meilisearch_sdk::{client::*, document::*, indexes::*, search::*};
 use serde::{Deserialize, Serialize};
 use std::boxed::Box;
 use std::io::Result;
 use std::sync::{Arc, Mutex};
 use std::{fs::File, io::prelude::*};
+
+use env_logger::Env;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Entry {
@@ -111,8 +117,8 @@ fn boxed_key(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
 }
 
-#[get("/")]
-async fn all<'a>(
+#[get("/bulk")]
+async fn bulk<'a>(
     info: web::Query<AllQuery>,
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
@@ -156,6 +162,29 @@ async fn search<'a>(
     Ok(HttpResponse::Ok().json(response))
 }
 
+async fn validator(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> actix_web::Result<ServiceRequest, actix_web::Error> {
+    let token = credentials.token();
+
+    let web_client = actix_web::client::Client::default();
+
+    let res = web_client
+        .get("https://icjoseph.eu.auth0.com/userinfo")
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await;
+
+    let status = res.unwrap().status();
+
+    if status == 200 {
+        return Ok(req);
+    }
+
+    return Err(actix_web::error::ErrorUnauthorized("Error"));
+}
+
 #[actix_web::main]
 async fn main() -> Result<()> {
     let mut args = std::env::args();
@@ -179,10 +208,15 @@ async fn main() -> Result<()> {
 
             let state = web::Data::new(AppState { client });
 
+            env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+
             HttpServer::new(move || {
                 App::new()
+                    .wrap(Logger::default())
+                    .wrap(HttpAuthentication::bearer(validator))
+                    .wrap(Cors::permissive())
                     .app_data(state.clone())
-                    .service(all)
+                    .service(bulk)
                     .service(search)
             })
             .bind("127.0.0.1:1234")?

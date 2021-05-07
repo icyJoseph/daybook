@@ -1,7 +1,8 @@
 export type Entry = {
+  id: string;
   title: string;
   description: string;
-  date: string;
+  day: string;
   tags: string[];
   privacy?: boolean;
   links?: string[];
