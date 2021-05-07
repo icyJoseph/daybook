@@ -1,7 +1,8 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use meilisearch_sdk::{client::*, document::*, errors::Error, search::*};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer};
+use meilisearch_sdk::{client::*, document::*, indexes::*, search::*};
 use serde::{Deserialize, Serialize};
 use std::boxed::Box;
+use std::io::Result;
 use std::sync::{Arc, Mutex};
 use std::{fs::File, io::prelude::*};
 
@@ -45,6 +46,11 @@ struct SearchQuery {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct AllQuery {
+    qty: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct QueryResponse {
     hits: Vec<Entry>,
     processing_time_ms: usize,
@@ -77,7 +83,7 @@ struct AppState<'a> {
     client: Arc<Mutex<Client<'a>>>,
 }
 
-async fn seed_ms<'a>(client: &Client<'a>) -> Result<(Option<String>, Option<String>), Error> {
+async fn seed_ms<'a>(client: &Client<'a>) -> Result<(Option<String>, Option<String>)> {
     // reading and parsing the seed file
     let mut file = File::open("./db/entries.json").unwrap();
     let mut content = String::new();
@@ -106,14 +112,30 @@ fn boxed_key(s: String) -> &'static str {
 }
 
 #[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
+async fn all<'a>(
+    info: web::Query<AllQuery>,
+    data: web::Data<AppState<'a>>,
+) -> Result<HttpResponse> {
+    let c_client = &data.clone().client;
+
+    let arc_client = &c_client.clone();
+    let client = arc_client.lock().unwrap();
+
+    let index: Index = client.get_index("entries").await.unwrap();
+
+    let all = index
+        .get_documents::<Entry>(None, info.qty, None)
+        .await
+        .unwrap();
+
+    Ok(HttpResponse::Ok().json(all))
 }
 
+#[get("/search")]
 async fn search<'a>(
     info: web::Query<SearchQuery>,
     data: web::Data<AppState<'a>>,
-) -> std::io::Result<HttpResponse> {
+) -> Result<HttpResponse> {
     let c_client = &data.clone().client;
 
     let arc_client = &c_client.clone();
@@ -135,26 +157,21 @@ async fn search<'a>(
 }
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> Result<()> {
     let mut args = std::env::args();
 
     args.next();
 
     match args.next() {
         Some(secret) => {
-            // Connect to search client
+            // Hack to make secret of 'static lifetime
             let key = boxed_key(secret);
+
+            // Connect to search client
             let ms_client = Client::new("http://localhost:7700", key);
 
-            // Keys are not really needed since we are connecting
-            // to the client using the master key
-            // This server also works as a proxy that severely limits
-            // the requests that can be made to the meilie server
             match seed_ms(&ms_client).await {
-                Ok(_) => {
-                    // println!("{:?} {:?}", keys.0, keys.1);
-                    println!("Happy Hacking");
-                }
+                Ok(_) => println!("Happy Hacking"),
                 Err(why) => println!("{:?}", why),
             }
 
@@ -162,17 +179,15 @@ async fn main() -> std::io::Result<()> {
 
             let state = web::Data::new(AppState { client });
 
-            match HttpServer::new(move || {
+            HttpServer::new(move || {
                 App::new()
                     .app_data(state.clone())
-                    .service(hello)
-                    .route("/search", web::get().to(search))
+                    .service(all)
+                    .service(search)
             })
-            .bind("127.0.0.1:1234")
-            {
-                Ok(e) => e.run().await,
-                Err(why) => panic!("{:?}", why),
-            }
+            .bind("127.0.0.1:1234")?
+            .run()
+            .await
         }
         None => panic!("Missing secret"),
     }
