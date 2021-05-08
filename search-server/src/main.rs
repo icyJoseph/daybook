@@ -3,6 +3,7 @@ use actix_web::{
     dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse, HttpServer,
 };
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
+use cached::proc_macro::cached;
 use meilisearch_sdk::{client::*, document::*, indexes::*, search::*};
 use serde::{Deserialize, Serialize};
 use std::boxed::Box;
@@ -18,6 +19,7 @@ struct Entry {
     title: String,
     description: String,
     day: String,
+    organization: Option<String>,
     privacy: bool,
     links: Vec<String>,
     tags: Vec<String>,
@@ -32,6 +34,7 @@ impl Clone for Entry {
             description: self.description.clone(),
             day: self.day.clone(),
             privacy: self.privacy,
+            organization: self.organization.clone(),
             links: self.links.clone(),
             tags: self.tags.clone(),
             images: self.images.clone(),
@@ -117,6 +120,35 @@ fn boxed_key(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
 }
 
+#[cached(size = 1, time = 120)]
+async fn verify_token(token: String) -> bool {
+    let web_client = actix_web::client::Client::default();
+
+    let res = web_client
+        .get("https://icjoseph.eu.auth0.com/userinfo")
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await;
+
+    let status = res.unwrap().status();
+
+    status == 200
+}
+
+async fn validator(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> actix_web::Result<ServiceRequest, actix_web::Error> {
+    let token = credentials.token();
+    let is_valid = verify_token(token.to_owned()).await;
+
+    if is_valid {
+        return Ok(req);
+    }
+
+    return Err(actix_web::error::ErrorUnauthorized("Error"));
+}
+
 #[get("/bulk")]
 async fn bulk<'a>(
     info: web::Query<AllQuery>,
@@ -160,29 +192,6 @@ async fn search<'a>(
     let response = QueryResponse::new(results);
 
     Ok(HttpResponse::Ok().json(response))
-}
-
-async fn validator(
-    req: ServiceRequest,
-    credentials: BearerAuth,
-) -> actix_web::Result<ServiceRequest, actix_web::Error> {
-    let token = credentials.token();
-
-    let web_client = actix_web::client::Client::default();
-
-    let res = web_client
-        .get("https://icjoseph.eu.auth0.com/userinfo")
-        .header("Authorization", format!("Bearer {}", token))
-        .send()
-        .await;
-
-    let status = res.unwrap().status();
-
-    if status == 200 {
-        return Ok(req);
-    }
-
-    return Err(actix_web::error::ErrorUnauthorized("Error"));
 }
 
 #[actix_web::main]
