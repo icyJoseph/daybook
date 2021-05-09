@@ -1,7 +1,6 @@
 {
   "name": "day-book",
   "version": "1.0.0",
-  "main": "index.js",
   "author": "Joseph Chamochumbi <sephxd1234@gmail.com>",
-  "license": "MIT"
+  "license": "MPL-2.0"
 }
