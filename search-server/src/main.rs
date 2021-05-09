@@ -18,7 +18,7 @@ struct Entry {
     id: String,
     title: String,
     description: String,
-    day: String,
+    created_at: u64,
     organization: Option<String>,
     privacy: bool,
     links: Vec<String>,
@@ -32,7 +32,7 @@ impl Clone for Entry {
             id: self.id.clone(),
             title: self.title.clone(),
             description: self.description.clone(),
-            day: self.day.clone(),
+            created_at: self.created_at,
             privacy: self.privacy,
             organization: self.organization.clone(),
             links: self.links.clone(),
@@ -51,12 +51,19 @@ impl Document for Entry {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SearchQuery {
-    query: String,
+    q: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct AllQuery {
+struct BulkQuery {
     qty: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct FromQuery {
+    limit: Option<usize>,
+    offset: Option<usize>,
+    created_at: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -149,13 +156,86 @@ async fn validator(
     return Err(actix_web::error::ErrorUnauthorized("Error"));
 }
 
-#[get("/bulk")]
-async fn bulk<'a>(
-    info: web::Query<AllQuery>,
+#[get("/later_than")]
+async fn later_than<'a>(
+    info: web::Query<FromQuery>,
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
     let c_client = &data.clone().client;
 
+    let arc_client = &c_client.clone();
+
+    let client = arc_client.lock().unwrap();
+
+    let index: Index = client.get_index("entries").await.unwrap();
+
+    let filter = format!("created_at >= {}", info.created_at);
+
+    let mut response = match (info.offset, info.limit) {
+        (Some(offset), Some(limit)) => index
+            .search()
+            .with_offset(offset)
+            .with_limit(limit)
+            .with_filters(&filter)
+            .execute()
+            .await
+            .unwrap(),
+        _ => {
+            let mut offset = 0;
+            let mut limit = 100;
+
+            let mut results: SearchResults<Entry> = index
+                .search()
+                .with_filters(&filter)
+                .with_offset(offset)
+                .with_limit(limit)
+                .execute()
+                .await
+                .unwrap();
+
+            loop {
+                offset = limit;
+                limit += 100;
+
+                let next: SearchResults<Entry> = index
+                    .search()
+                    .with_filters(&filter)
+                    .with_offset(offset)
+                    .with_limit(limit)
+                    .execute()
+                    .await
+                    .unwrap();
+
+                println!("{:?}", next);
+
+                if next.hits.len() == 0 {
+                    break;
+                }
+
+                for hit in next.hits {
+                    results.hits.push(hit);
+                }
+
+                results.processing_time_ms += next.processing_time_ms;
+            }
+
+            results
+        }
+    };
+
+    response
+        .hits
+        .sort_by(|a, b| a.result.created_at.cmp(&b.result.created_at).reverse());
+
+    Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
+}
+
+#[get("/bulk")]
+async fn bulk<'a>(
+    info: web::Query<BulkQuery>,
+    data: web::Data<AppState<'a>>,
+) -> Result<HttpResponse> {
+    let c_client = &data.clone().client;
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
@@ -175,23 +255,19 @@ async fn search<'a>(
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
     let c_client = &data.clone().client;
-
     let arc_client = &c_client.clone();
-
     let client = arc_client.lock().unwrap();
 
     let index = client.get_index("entries").await.unwrap();
 
     let results: SearchResults<Entry> = index
         .search()
-        .with_query(&info.0.query)
+        .with_query(&info.0.q)
         .execute()
         .await
         .unwrap();
 
-    let response = QueryResponse::new(results);
-
-    Ok(HttpResponse::Ok().json(response))
+    Ok(HttpResponse::Ok().json(QueryResponse::new(results)))
 }
 
 #[actix_web::main]
@@ -227,6 +303,7 @@ async fn main() -> Result<()> {
                     .app_data(state.clone())
                     .service(bulk)
                     .service(search)
+                    .service(later_than)
             })
             .bind("127.0.0.1:1234")?
             .run()

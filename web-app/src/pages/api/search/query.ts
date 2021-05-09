@@ -11,14 +11,13 @@ async function query(req: NextApiRequest, res: NextApiResponse) {
 
     const { accessToken } = session;
 
+    if (!accessToken) return res.status(401).json({ statusCode: 401 });
+
     const { query } = req;
 
-    const data = await fetch(
-      `${process.env.PROXY_URL}/search?query=${query.term}`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      }
-    ).then((res) => res.json());
+    const data = await fetch(`${process.env.PROXY_URL}/search?q=${query.q}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    }).then((res) => res.json());
 
     return res.json(data);
   } catch (err) {

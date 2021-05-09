@@ -1,5 +1,5 @@
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0";
-import { useRef, useState } from "react";
 import { Entry } from "../interfaces/entry";
 
 const LoginControls = () => {
@@ -18,6 +18,68 @@ const LoginControls = () => {
   );
 };
 
+const EntryCard = ({ created_at, title, description }: Entry) => {
+  const date = new Date(created_at).toLocaleDateString();
+
+  return (
+    <li>
+      <h2>{title}</h2>
+      <p>{description}</p>
+      <time dateTime={date}>{date}</time>
+    </li>
+  );
+};
+
+const useConstant = <T,>(init: () => T): T => {
+  const ref = useRef<T | null>(null);
+
+  if (ref.current === null) {
+    ref.current = init();
+  }
+
+  return ref.current;
+};
+
+const LastWeek = ({
+  updateSearchTime
+}: {
+  updateSearchTime: Dispatch<SetStateAction<number | null>>;
+}) => {
+  const [entries, setEntries] = useState<Entry[]>([]);
+
+  const date = useConstant(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 13);
+    return date.getTime();
+  });
+
+  useEffect(() => {
+    fetch(`/api/search/later_than?created_at=${date}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if ("hits" in data) {
+          setEntries(data.hits);
+        }
+        if ("processing_time_ms" in data) {
+          updateSearchTime(data.processing_time_ms);
+        } else {
+          setEntries([]);
+        }
+      });
+  }, [date]);
+
+  return (
+    <>
+      <h2>Last week</h2>
+      <ul>
+        {entries.map((entry) => (
+          <EntryCard key={entry.id} {...entry} />
+        ))}
+      </ul>
+    </>
+  );
+};
+
 const Search = () => {
   const [items, setItems] = useState<Entry[]>([]);
   const [searchTime, setSearchTime] = useState<number | null>(null);
@@ -31,7 +93,7 @@ const Search = () => {
           const query = inputRef.current?.value?.trim();
           if (query) {
             const data = await fetch(
-              `/api/search/query?term=${query}`
+              `/api/search/query?q=${query}`
             ).then((res) => res.json());
 
             if ("hits" in data) {
@@ -40,6 +102,8 @@ const Search = () => {
             if ("processing_time_ms" in data) {
               setSearchTime(data.processing_time_ms);
             }
+          } else {
+            setItems([]);
           }
         }}
       >
@@ -47,19 +111,15 @@ const Search = () => {
         <button>Search</button>
       </form>
       {searchTime === null ? null : <span>Search time: {searchTime} ms</span>}
-      <ul>
-        {items.map((item) => {
-          const date = new Date(item.day).toLocaleDateString();
-          
-          return (
-            <li key={item.id}>
-              <h2>{item.title}</h2>
-              <p>{item.description}</p>
-              <time dateTime={date}>{date}</time>
-            </li>
-          );
-        })}
-      </ul>
+      {items.length > 0 ? (
+        <ul>
+          {items.map((item) => (
+            <EntryCard key={item.id} {...item} />
+          ))}
+        </ul>
+      ) : (
+        <LastWeek updateSearchTime={setSearchTime} />
+      )}
     </>
   );
 };
