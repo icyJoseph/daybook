@@ -1,3 +1,6 @@
+mod entry;
+mod query;
+
 use actix_cors::Cors;
 use actix_web::{
     dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse, HttpServer,
@@ -5,80 +8,22 @@ use actix_web::{
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
 use cached::proc_macro::cached;
 use dotenv;
-use meilisearch_sdk::{client::*, document::*, indexes::*, search::*};
-use serde::{Deserialize, Serialize};
+
+use entry::Entry;
+
+use meilisearch_sdk::{client::*, indexes::*, search::*};
+
 use std::boxed::Box;
 use std::env;
 use std::io::Result;
 use std::sync::{Arc, Mutex};
 use std::{fs::File, io::prelude::*};
 
+use query::*;
+
 use env_logger::Env;
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Entry {
-    id: String,
-    title: String,
-    description: String,
-    created_at: u64,
-    organization: Option<String>,
-    privacy: bool,
-    links: Vec<String>,
-    tags: Vec<String>,
-    images: Vec<String>,
-}
-
-impl Clone for Entry {
-    fn clone(&self) -> Self {
-        Entry {
-            id: self.id.clone(),
-            title: self.title.clone(),
-            description: self.description.clone(),
-            created_at: self.created_at,
-            privacy: self.privacy,
-            organization: self.organization.clone(),
-            links: self.links.clone(),
-            tags: self.tags.clone(),
-            images: self.images.clone(),
-        }
-    }
-}
-
-impl Document for Entry {
-    type UIDType = String;
-    fn get_uid(&self) -> &Self::UIDType {
-        &self.id
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct SearchQuery {
-    q: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct BulkQuery {
-    qty: Option<usize>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct FromQuery {
-    limit: Option<usize>,
-    offset: Option<usize>,
-    created_at: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct QueryResponse {
-    hits: Vec<Entry>,
-    processing_time_ms: usize,
-    offset: usize,
-    limit: usize,
-    nb_hits: usize,
-    exhaustive_nb_hits: bool,
-}
-
-impl QueryResponse {
+impl QueryResponse<Entry> {
     fn new(results: SearchResults<Entry>) -> Self {
         let hits = results
             .hits
