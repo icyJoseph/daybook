@@ -24,6 +24,7 @@ async function from(req: NextApiRequest, res: NextApiResponse) {
 
     return res.json(data);
   } catch (err) {
+    console.log(err);
     if ("code" in err) {
       if (err.code === "access_token_expired")
         return res.redirect("/logout").json({ statusCode: 302 });

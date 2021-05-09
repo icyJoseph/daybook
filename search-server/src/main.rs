@@ -4,9 +4,11 @@ use actix_web::{
 };
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
 use cached::proc_macro::cached;
+use dotenv;
 use meilisearch_sdk::{client::*, document::*, indexes::*, search::*};
 use serde::{Deserialize, Serialize};
 use std::boxed::Box;
+use std::env;
 use std::io::Result;
 use std::sync::{Arc, Mutex};
 use std::{fs::File, io::prelude::*};
@@ -131,15 +133,22 @@ fn boxed_key(s: String) -> &'static str {
 async fn verify_token(token: String) -> bool {
     let web_client = actix_web::client::Client::default();
 
-    let res = web_client
-        .get("https://icjoseph.eu.auth0.com/userinfo")
-        .header("Authorization", format!("Bearer {}", token))
-        .send()
-        .await;
+    let key = "AUTH0_ISSUER_BASE_URL";
 
-    let status = res.unwrap().status();
+    match env::var(key) {
+        Ok(url) => {
+            let endpoint = format!("{}/userinfo", url);
+            let res = web_client
+                .get(endpoint)
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
 
-    status == 200
+            let status = res.unwrap().status();
+            status == 200
+        }
+        Err(_) => false,
+    }
 }
 
 async fn validator(
@@ -206,8 +215,6 @@ async fn later_than<'a>(
                     .await
                     .unwrap();
 
-                println!("{:?}", next);
-
                 if next.hits.len() == 0 {
                     break;
                 }
@@ -272,18 +279,27 @@ async fn search<'a>(
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    let mut args = std::env::args();
+    dotenv::dotenv().ok();
 
-    args.next();
+    let ms_secret_key = "MEILI_MASTER_KEY";
+    let ms_url_key = "MEILI_BASE_URL";
+    let actix_url_key = "ACTIX_SERVER_URL";
 
-    match args.next() {
-        Some(secret) => {
-            // Hack to make secret of 'static lifetime
-            let key = boxed_key(secret);
+    match (
+        env::var(ms_secret_key),
+        env::var(ms_url_key),
+        env::var(actix_url_key),
+    ) {
+        (Ok(secret_key), Ok(ms_url), Ok(actix_url)) => {
+            // Hack to get 'static lifetime
+            let boxed_secret_key = boxed_key(secret_key);
+            let boxed_ms_url = boxed_key(ms_url);
+            let boxed_actix_url = boxed_key(actix_url);
 
             // Connect to search client
-            let ms_client = Client::new("http://localhost:7700", key);
+            let ms_client = Client::new(boxed_ms_url, boxed_secret_key);
 
+            // development mode
             match seed_ms(&ms_client).await {
                 Ok(_) => println!("Happy Hacking"),
                 Err(why) => println!("{:?}", why),
@@ -305,10 +321,10 @@ async fn main() -> Result<()> {
                     .service(search)
                     .service(later_than)
             })
-            .bind("127.0.0.1:1234")?
+            .bind(boxed_actix_url)?
             .run()
             .await
         }
-        None => panic!("Missing secret"),
+        _ => panic!("Missing Env Vars, .env file"),
     }
 }
