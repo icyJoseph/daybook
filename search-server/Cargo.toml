@@ -12,6 +12,7 @@ actix-cors = "0.5.4"
 actix-web = { version = "3" , features = ["openssl"] }
 actix-web-httpauth = "0.5.1"
 cached = "0.23.0"
+ctrlc = "3.1.9" 
 dotenv = "0.15.0"
 env_logger = "0.8.3"
 meilisearch-sdk = "0.8.0"

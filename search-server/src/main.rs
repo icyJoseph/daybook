@@ -1,5 +1,6 @@
 mod entry;
 mod query;
+mod start;
 
 use actix_cors::Cors;
 use actix_web::{
@@ -18,6 +19,8 @@ use std::env;
 use std::io::Result;
 use std::sync::{Arc, Mutex};
 use std::{fs::File, io::prelude::*};
+
+use start::start_meilisearch;
 
 use query::*;
 
@@ -116,9 +119,7 @@ async fn later_than<'a>(
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
     let c_client = &data.clone().client;
-
     let arc_client = &c_client.clone();
-
     let client = arc_client.lock().unwrap();
 
     let index: Index = client.get_index("entries").await.unwrap();
@@ -224,18 +225,22 @@ async fn search<'a>(
 
 #[actix_web::main]
 async fn main() -> Result<()> {
+    // Sets up master key on MeiliSearch and Authentication endpoints
     dotenv::dotenv().ok();
 
     let ms_secret_key = "MEILI_MASTER_KEY";
     let ms_url_key = "MEILI_BASE_URL";
     let actix_url_key = "ACTIX_SERVER_URL";
 
+    // Run, only if all three variables exist
     match (
         env::var(ms_secret_key),
         env::var(ms_url_key),
         env::var(actix_url_key),
     ) {
         (Ok(secret_key), Ok(ms_url), Ok(actix_url)) => {
+            start_meilisearch();
+
             // Hack to get 'static lifetime
             let boxed_secret_key = boxed_key(secret_key);
             let boxed_ms_url = boxed_key(ms_url);
