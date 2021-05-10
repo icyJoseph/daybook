@@ -5,7 +5,7 @@ mod start;
 
 use actix_cors::Cors;
 use actix_web::{
-    dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse, HttpServer,
+    delete, dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse, HttpServer,
 };
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
 use cached::proc_macro::cached;
@@ -263,14 +263,48 @@ async fn create<'a>(
         title: info.title.clone(),
         description: info.description.clone(),
         created_at,
-        organization: None,
-        privacy: false,
+        organization: info.organization.clone(),
+        privacy: if info.privacy.is_none() { false } else { true },
         links: vec![],
         tags: vec![],
         images: vec![],
     };
 
     let progress: Progress = index.add_or_replace(&[entry], None).await.unwrap();
+    let status: UpdateStatus = progress.get_status().await.unwrap();
+
+    let response = match status {
+        UpdateStatus::Enqueued { content } => StatusResponse {
+            update_id: content.update_id,
+            state: "processing".to_string(),
+        },
+        UpdateStatus::Failed { content } => StatusResponse {
+            update_id: content.update_id,
+            state: "failed".to_string(),
+        },
+        UpdateStatus::Processed { content } => StatusResponse {
+            update_id: content.update_id,
+            state: "done".to_string(),
+        },
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
+#[delete("/delete/{id}")]
+async fn delete<'a>(
+    path: web::Path<(String,)>,
+    data: web::Data<AppState<'a>>,
+) -> Result<HttpResponse> {
+    let to_delete = path.into_inner().0;
+
+    let c_client = &data.clone().client;
+    let arc_client = &c_client.clone();
+    let client = arc_client.lock().unwrap();
+
+    let index: Index = client.get_index("entries").await.unwrap();
+
+    let progress: Progress = index.delete_document(to_delete).await.unwrap();
     let status: UpdateStatus = progress.get_status().await.unwrap();
 
     let response = match status {
@@ -385,6 +419,7 @@ async fn main() -> Result<()> {
                     .service(later_than)
                     .service(create)
                     .service(check_update)
+                    .service(delete)
             })
             .bind(boxed_actix_url)?
             .run()

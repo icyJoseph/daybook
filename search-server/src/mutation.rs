@@ -31,11 +31,6 @@ pub struct UpdatePrivacy {
     pub new_privacy: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct DeleteEntry {
-    pub id: String,
-}
-
 /// Returns time in SECONDS
 pub fn get_mutation_time() -> u64 {
     match SystemTime::now().duration_since(UNIX_EPOCH) {
