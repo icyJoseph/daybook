@@ -367,6 +367,23 @@ async fn check_update<'a>(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[get("/entry/{id}")]
+async fn get_by_id<'a>(
+    path: web::Path<(String,)>,
+    data: web::Data<AppState<'a>>,
+) -> Result<HttpResponse> {
+    let c_client = &data.clone().client;
+    let arc_client = &c_client.clone();
+    let client = arc_client.lock().unwrap();
+
+    let index: Index = client.get_index("entries").await.unwrap();
+
+    let entry_id = path.into_inner().0;
+    let entry = index.get_document::<Entry>(entry_id).await.unwrap();
+
+    Ok(HttpResponse::Ok().json(entry))
+}
+
 #[actix_web::main]
 async fn main() -> Result<()> {
     // Sets up master key on MeiliSearch and Authentication endpoints
@@ -414,6 +431,7 @@ async fn main() -> Result<()> {
                     .wrap(HttpAuthentication::bearer(validator))
                     .wrap(Cors::permissive())
                     .app_data(state.clone())
+                    .service(get_by_id)
                     .service(bulk)
                     .service(search)
                     .service(later_than)
