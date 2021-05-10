@@ -1,4 +1,5 @@
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
+import Head from "next/head";
 import { useUser } from "@auth0/nextjs-auth0";
 import { Entry } from "../interfaces/entry";
 
@@ -19,7 +20,7 @@ const LoginControls = () => {
 };
 
 const EntryCard = ({ created_at, title, description }: Entry) => {
-  const date = new Date(created_at).toLocaleDateString();
+  const date = new Date(created_at * 1000).toLocaleDateString();
 
   return (
     <li>
@@ -50,7 +51,7 @@ const LastWeek = ({
   const date = useConstant(() => {
     const date = new Date();
     date.setDate(date.getDate() - 13);
-    return date.getTime();
+    return Math.floor(date.getTime() / 1000);
   });
 
   useEffect(() => {
@@ -131,6 +132,9 @@ const IndexPage = () => {
 
   return (
     <>
+      <Head>
+        <title>Create</title>
+      </Head>
       <header>
         <nav>
           <h1>Hi</h1>

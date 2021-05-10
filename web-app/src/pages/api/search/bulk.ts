@@ -13,17 +13,20 @@ async function bulk(req: NextApiRequest, res: NextApiResponse) {
 
     if (!accessToken) return res.status(401).json({ statusCode: 401 });
 
-    const data = await fetch(process.env.PROXY_URL, {
+    const data = await fetch(`${process.env.PROXY_URL}/bulk`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     }).then((res) => res.json());
 
     return res.json(data);
   } catch (err) {
     if ("code" in err) {
-      if (err.code === "access_token_expired")
-        return res.redirect("/logout").json({ statusCode: 302 });
+      if (err.code === "access_token_expired") {
+        res.statusCode = 301;
+        res.redirect("/api/auth/logout");
+      }
+    } else {
+      return res.status(500).json({ statusCode: 500 });
     }
-    return res.status(500).json({ statusCode: 500 });
   }
 }
 

@@ -1,8 +1,8 @@
 import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
 import { NextApiRequest, NextApiResponse } from "next";
 
-async function from(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") return res.status(401).json({ statusCode: 401 });
+async function bulk(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") return res.status(401).json({ statusCode: 401 });
 
   try {
     const session = await getAccessToken(req, res);
@@ -13,19 +13,17 @@ async function from(req: NextApiRequest, res: NextApiResponse) {
 
     if (!accessToken) return res.status(401).json({ statusCode: 401 });
 
-    const { query } = req;
-
-    const data = await fetch(
-      `${process.env.PROXY_URL}/later_than?created_at=${query.created_at}`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      }
-    ).then((res) => res.json());
+    const data = await fetch(`${process.env.PROXY_URL}/create`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(req.body)
+    }).then((res) => res.json());
 
     return res.json(data);
   } catch (err) {
-    console.log(err);
-    // TODO: Handle this case in all API routes
     if ("code" in err) {
       if (err.code === "access_token_expired") {
         res.statusCode = 301;
@@ -37,4 +35,4 @@ async function from(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default withApiAuthRequired(from);
+export default withApiAuthRequired(bulk);

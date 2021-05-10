@@ -22,10 +22,13 @@ async function query(req: NextApiRequest, res: NextApiResponse) {
     return res.json(data);
   } catch (err) {
     if ("code" in err) {
-      if (err.code === "access_token_expired")
-        return res.redirect("/logout").json({ statusCode: 302 });
+      if (err.code === "access_token_expired") {
+        res.statusCode = 301;
+        res.redirect("/api/auth/logout");
+      }
+    } else {
+      return res.status(500).json({ statusCode: 500 });
     }
-    return res.status(500).json({ statusCode: 500 });
   }
 }
 

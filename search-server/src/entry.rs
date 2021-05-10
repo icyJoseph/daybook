@@ -6,6 +6,7 @@ pub struct Entry {
     pub id: String,
     pub title: String,
     pub description: String,
+    // in SECONDS
     pub created_at: u64,
     pub organization: Option<String>,
     pub privacy: bool,

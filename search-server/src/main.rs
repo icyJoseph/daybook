@@ -1,4 +1,5 @@
 mod entry;
+mod mutation;
 mod query;
 mod start;
 
@@ -11,8 +12,13 @@ use cached::proc_macro::cached;
 use dotenv;
 
 use entry::Entry;
+use env_logger::Env;
 
-use meilisearch_sdk::{client::*, indexes::*, search::*};
+use mutation::{get_mutation_time, CreateEntry};
+
+use meilisearch_sdk::{client::*, indexes::*, progress::*, search::*};
+
+use serde::{Deserialize, Serialize};
 
 use std::boxed::Box;
 use std::env;
@@ -24,7 +30,7 @@ use start::start_meilisearch;
 
 use query::*;
 
-use env_logger::Env;
+use uuid::Uuid;
 
 impl QueryResponse<Entry> {
     fn new(results: SearchResults<Entry>) -> Self {
@@ -45,6 +51,10 @@ impl QueryResponse<Entry> {
     }
 }
 
+// TODO: Use Index instead of whole client
+// OR: Decide if multiple users will be allowed, in which case
+// each would get their own index, which makes
+// passing the client around necessary
 struct AppState<'a> {
     client: Arc<Mutex<Client<'a>>>,
 }
@@ -223,6 +233,106 @@ async fn search<'a>(
     Ok(HttpResponse::Ok().json(QueryResponse::new(results)))
 }
 
+#[derive(Serialize)]
+struct StatusResponse {
+    update_id: u64,
+    state: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct UpdateQuery {
+    update_id: u64,
+}
+
+#[post("/create")]
+async fn create<'a>(
+    info: web::Json<CreateEntry>,
+    data: web::Data<AppState<'a>>,
+) -> Result<HttpResponse> {
+    let c_client = &data.clone().client;
+    let arc_client = &c_client.clone();
+    let client = arc_client.lock().unwrap();
+
+    let index: Index = client.get_index("entries").await.unwrap();
+
+    let created_at = get_mutation_time();
+    let uuid = Uuid::new_v4();
+
+    let entry = Entry {
+        id: uuid.to_hyphenated().to_string(),
+        title: info.title.clone(),
+        description: info.description.clone(),
+        created_at,
+        organization: None,
+        privacy: false,
+        links: vec![],
+        tags: vec![],
+        images: vec![],
+    };
+
+    let progress: Progress = index.add_or_replace(&[entry], None).await.unwrap();
+    let status: UpdateStatus = progress.get_status().await.unwrap();
+
+    let response = match status {
+        UpdateStatus::Enqueued { content } => StatusResponse {
+            update_id: content.update_id,
+            state: "processing".to_string(),
+        },
+        UpdateStatus::Failed { content } => StatusResponse {
+            update_id: content.update_id,
+            state: "failed".to_string(),
+        },
+        UpdateStatus::Processed { content } => StatusResponse {
+            update_id: content.update_id,
+            state: "done".to_string(),
+        },
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
+#[get("/check_update")]
+async fn check_update<'a>(
+    info: web::Query<UpdateQuery>,
+    data: web::Data<AppState<'a>>,
+) -> Result<HttpResponse> {
+    let c_client = &data.clone().client;
+    let arc_client = &c_client.clone();
+    let client = arc_client.lock().unwrap();
+
+    let index: Index = client.get_index("entries").await.unwrap();
+
+    let all_updates: Vec<UpdateStatus> = index.get_all_updates().await.unwrap();
+
+    let update_id = info.update_id;
+    let status = all_updates.iter().find(|obj| match obj {
+        UpdateStatus::Enqueued { content } => content.update_id == update_id,
+        UpdateStatus::Failed { content } => content.update_id == update_id,
+        UpdateStatus::Processed { content } => content.update_id == update_id,
+    });
+
+    let response = match status {
+        Some(UpdateStatus::Enqueued { content }) => StatusResponse {
+            update_id: content.update_id,
+            state: "processing".to_string(),
+        },
+        Some(UpdateStatus::Failed { content }) => StatusResponse {
+            update_id: content.update_id,
+            state: "failed".to_string(),
+        },
+        Some(UpdateStatus::Processed { content }) => StatusResponse {
+            update_id: content.update_id,
+            state: "done".to_string(),
+        },
+        _ => StatusResponse {
+            update_id,
+            state: "not found".to_string(),
+        },
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
 #[actix_web::main]
 async fn main() -> Result<()> {
     // Sets up master key on MeiliSearch and Authentication endpoints
@@ -239,7 +349,10 @@ async fn main() -> Result<()> {
         env::var(actix_url_key),
     ) {
         (Ok(secret_key), Ok(ms_url), Ok(actix_url)) => {
-            start_meilisearch();
+            match start_meilisearch() {
+                Ok(_) => {}
+                Err(why) => panic!("Could not start MeiliSearch: {:?}", why),
+            }
 
             // Hack to get 'static lifetime
             let boxed_secret_key = boxed_key(secret_key);
@@ -270,6 +383,8 @@ async fn main() -> Result<()> {
                     .service(bulk)
                     .service(search)
                     .service(later_than)
+                    .service(create)
+                    .service(check_update)
             })
             .bind(boxed_actix_url)?
             .run()
