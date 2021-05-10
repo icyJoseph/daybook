@@ -4,16 +4,23 @@ import Link from "next/link";
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <UserProvider>
-      <nav>
-        <Link href="/">
-          <a style={{ marginRight: "8px" }}>Home</a>
-        </Link>
-        <Link href="/create">
-          <a>Create</a>
-        </Link>
-      </nav>
-      <Component {...pageProps} />
-    </UserProvider>
+    <>
+      <style global jsx>{`
+        a {
+          margin-right: 8px;
+        }
+      `}</style>
+      <UserProvider>
+        <nav>
+          <Link href="/">
+            <a>Home</a>
+          </Link>
+          <Link href="/create">
+            <a>Create</a>
+          </Link>
+        </nav>
+        <Component {...pageProps} />
+      </UserProvider>
+    </>
   );
 }

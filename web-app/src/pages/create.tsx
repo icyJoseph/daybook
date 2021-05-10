@@ -1,4 +1,3 @@
-// pages/profile.js
 import Head from "next/head";
 import { withPageAuthRequired, UserProfile } from "@auth0/nextjs-auth0";
 import { useRef, FormEvent } from "react";

@@ -1,8 +1,8 @@
 import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
 import { NextApiRequest, NextApiResponse } from "next";
 
-async function bulk(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(401).json({ statusCode: 401 });
+async function deleteEntry(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "DELETE") return res.status(401).json({ statusCode: 401 });
 
   try {
     const session = await getAccessToken(req, res);
@@ -13,17 +13,15 @@ async function bulk(req: NextApiRequest, res: NextApiResponse) {
 
     if (!accessToken) return res.status(401).json({ statusCode: 401 });
 
-    const current = req.body;
+    const { id } = req.query;
 
-    const { id: omit, created_at: omit2, ...rest } = current;
+    if (!id) return res.status(500).json({ statusCode: 500 });
 
-    const data = await fetch(`${process.env.PROXY_URL}/create`, {
-      method: "POST",
+    const data = await fetch(`${process.env.PROXY_URL}/delete/${id}`, {
+      method: "DELETE",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(rest)
+        Authorization: `Bearer ${accessToken}`
+      }
     }).then((res) => res.json());
 
     return res.json(data);
@@ -39,4 +37,4 @@ async function bulk(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default withApiAuthRequired(bulk);
+export default withApiAuthRequired(deleteEntry);

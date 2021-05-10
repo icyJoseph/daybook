@@ -1,7 +1,7 @@
 import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
 import { NextApiRequest, NextApiResponse } from "next";
 
-async function bulk(req: NextApiRequest, res: NextApiResponse) {
+async function update(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(401).json({ statusCode: 401 });
 
   try {
@@ -13,9 +13,13 @@ async function bulk(req: NextApiRequest, res: NextApiResponse) {
 
     if (!accessToken) return res.status(401).json({ statusCode: 401 });
 
-    const current = req.body;
+    const { next, current } = req.body;
 
-    const { id: omit, created_at: omit2, ...rest } = current;
+    const { id: omit, create_at: omit2, ...nextRest } = next;
+
+    if (!current.id) return res.status(500).json({ statusCode: 500 });
+
+    const update = { ...current, ...nextRest };
 
     const data = await fetch(`${process.env.PROXY_URL}/create`, {
       method: "POST",
@@ -23,7 +27,7 @@ async function bulk(req: NextApiRequest, res: NextApiResponse) {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(rest)
+      body: JSON.stringify(update)
     }).then((res) => res.json());
 
     return res.json(data);
@@ -39,4 +43,4 @@ async function bulk(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default withApiAuthRequired(bulk);
+export default withApiAuthRequired(update);

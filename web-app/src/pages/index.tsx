@@ -2,6 +2,7 @@ import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import { useUser } from "@auth0/nextjs-auth0";
 import { Entry } from "../interfaces/entry";
+import Link from "next/link";
 
 const LoginControls = () => {
   const { user } = useUser();
@@ -19,7 +20,7 @@ const LoginControls = () => {
   );
 };
 
-const EntryCard = ({ created_at, title, description }: Entry) => {
+const EntryCard = ({ id, created_at, title, description }: Entry) => {
   const date = new Date(created_at * 1000).toLocaleDateString();
 
   return (
@@ -27,6 +28,13 @@ const EntryCard = ({ created_at, title, description }: Entry) => {
       <h2>{title}</h2>
       <p>{description}</p>
       <time dateTime={date}>{date}</time>
+
+      <Link href={`/edit/${id}`}>
+        <a>Edit</a>
+      </Link>
+      <Link href={`/delete/${id}`}>
+        <a>Delete</a>
+      </Link>
     </li>
   );
 };
@@ -137,7 +145,7 @@ const IndexPage = () => {
       </Head>
       <header>
         <nav>
-          <h1>Hi</h1>
+          <h1>Daybook</h1>
           {!error ? <LoginControls /> : <span>{error.message}</span>}
         </nav>
       </header>
