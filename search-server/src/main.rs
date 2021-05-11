@@ -1,4 +1,5 @@
 mod entry;
+mod helpers;
 mod mutation;
 mod query;
 mod start;
@@ -14,21 +15,19 @@ use dotenv;
 use entry::Entry;
 use env_logger::Env;
 
-use mutation::{get_mutation_time, CreateEntry};
+use helpers::*;
 
 use meilisearch_sdk::{client::*, indexes::*, progress::*, search::*};
+use mutation::CreateEntry;
+
+use query::*;
 
 use serde::{Deserialize, Serialize};
 
-use std::boxed::Box;
+use start::{check_meilisearch, start_meilisearch};
 use std::env;
 use std::io::Result;
 use std::sync::{Arc, Mutex};
-use std::{fs::File, io::prelude::*};
-
-use start::start_meilisearch;
-
-use query::*;
 
 use uuid::Uuid;
 
@@ -51,40 +50,9 @@ impl QueryResponse<Entry> {
     }
 }
 
-// TODO: Use Index instead of whole client
-// OR: Decide if multiple users will be allowed, in which case
-// each would get their own index, which makes
-// passing the client around necessary
 struct AppState<'a> {
     client: Arc<Mutex<Client<'a>>>,
-}
-
-async fn seed_ms<'a>(client: &Client<'a>) -> Result<(Option<String>, Option<String>)> {
-    // reading and parsing the seed file
-    let mut file = File::open("./db/entries.json").unwrap();
-    let mut content = String::new();
-    file.read_to_string(&mut content).unwrap();
-    let entries_doc: Vec<Entry> = serde_json::from_str(&content).unwrap();
-
-    // get or create a search index on
-    let entries = client.get_or_create("entries").await.unwrap();
-
-    entries.add_documents(&entries_doc, None).await.unwrap();
-
-    let is_healthy = client.is_healthy().await;
-
-    if is_healthy {
-        match client.get_keys().await {
-            Ok(keys) => return Ok((keys.private, keys.public)),
-            Err(_) => return Ok((None, None)),
-        }
-    }
-
-    panic!("Client was not healthy")
-}
-
-fn boxed_key(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
+    index_name: &'a str,
 }
 
 #[cached(size = 1, time = 120)]
@@ -128,11 +96,15 @@ async fn later_than<'a>(
     info: web::Query<FromQuery>,
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
-    let c_client = &data.clone().client;
+    let state = &data.clone();
+
+    let index_name = &state.index_name;
+
+    let c_client = &state.client;
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index("entries").await.unwrap();
+    let index: Index = client.get_index(index_name).await.unwrap();
 
     let filter = format!("created_at >= {}", info.created_at);
 
@@ -198,11 +170,15 @@ async fn bulk<'a>(
     info: web::Query<BulkQuery>,
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
-    let c_client = &data.clone().client;
+    let state = &data.clone();
+
+    let index_name = &state.index_name;
+
+    let c_client = &state.client;
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index("entries").await.unwrap();
+    let index: Index = client.get_index(index_name).await.unwrap();
 
     let all = index
         .get_documents::<Entry>(None, info.qty, None)
@@ -217,11 +193,16 @@ async fn search<'a>(
     info: web::Query<SearchQuery>,
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
-    let c_client = &data.clone().client;
+    let state = &data.clone();
+
+    let index_name = &state.index_name;
+
+    let c_client = &state.client;
+
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index = client.get_index("entries").await.unwrap();
+    let index = client.get_index(index_name).await.unwrap();
 
     let results: SearchResults<Entry> = index
         .search()
@@ -249,13 +230,17 @@ async fn create<'a>(
     info: web::Json<CreateEntry>,
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
-    let c_client = &data.clone().client;
+    let state = &data.clone();
+
+    let index_name = &state.index_name;
+
+    let c_client = &state.client;
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index("entries").await.unwrap();
+    let index: Index = client.get_index(index_name).await.unwrap();
 
-    let created_at = get_mutation_time();
+    let created_at = get_current_time_secs();
     let uuid = Uuid::new_v4();
 
     let entry = Entry {
@@ -298,11 +283,15 @@ async fn delete<'a>(
 ) -> Result<HttpResponse> {
     let to_delete = path.into_inner().0;
 
-    let c_client = &data.clone().client;
+    let state = &data.clone();
+
+    let index_name = &state.index_name;
+
+    let c_client = &state.client;
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index("entries").await.unwrap();
+    let index: Index = client.get_index(index_name).await.unwrap();
 
     let progress: Progress = index.delete_document(to_delete).await.unwrap();
     let status: UpdateStatus = progress.get_status().await.unwrap();
@@ -330,11 +319,15 @@ async fn check_update<'a>(
     info: web::Query<UpdateQuery>,
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
-    let c_client = &data.clone().client;
+    let state = &data.clone();
+
+    let index_name = &state.index_name;
+
+    let c_client = &state.client;
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index("entries").await.unwrap();
+    let index: Index = client.get_index(index_name).await.unwrap();
 
     let all_updates: Vec<UpdateStatus> = index.get_all_updates().await.unwrap();
 
@@ -372,11 +365,15 @@ async fn get_by_id<'a>(
     path: web::Path<(String,)>,
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
-    let c_client = &data.clone().client;
+    let state = &data.clone();
+
+    let index_name = &state.index_name;
+
+    let c_client = &state.client;
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index("entries").await.unwrap();
+    let index: Index = client.get_index(index_name).await.unwrap();
 
     let entry_id = path.into_inner().0;
     let entry = index.get_document::<Entry>(entry_id).await.unwrap();
@@ -392,15 +389,17 @@ async fn main() -> Result<()> {
     let ms_secret_key = "MEILI_MASTER_KEY";
     let ms_url_key = "MEILI_BASE_URL";
     let actix_url_key = "ACTIX_SERVER_URL";
+    let index_name_key = "INDEX_NAME";
 
     // Run, only if all three variables exist
     match (
         env::var(ms_secret_key),
         env::var(ms_url_key),
         env::var(actix_url_key),
+        env::var(index_name_key),
     ) {
-        (Ok(secret_key), Ok(ms_url), Ok(actix_url)) => {
-            match start_meilisearch() {
+        (Ok(secret_key), Ok(ms_url), Ok(actix_url), Ok(index_name)) => {
+            match start_meilisearch().await {
                 Ok(_) => {}
                 Err(why) => panic!("Could not start MeiliSearch: {:?}", why),
             }
@@ -409,19 +408,22 @@ async fn main() -> Result<()> {
             let boxed_secret_key = boxed_key(secret_key);
             let boxed_ms_url = boxed_key(ms_url);
             let boxed_actix_url = boxed_key(actix_url);
+            let boxed_index_name = boxed_key(index_name);
 
             // Connect to search client
             let ms_client = Client::new(boxed_ms_url, boxed_secret_key);
 
-            // development mode
-            match seed_ms(&ms_client).await {
-                Ok(_) => println!("Happy Hacking"),
-                Err(why) => println!("{:?}", why),
-            }
+            match check_meilisearch(&ms_client, boxed_index_name).await {
+                Ok(_) => {}
+                Err(why) => panic!("Could not check MeiliSearch: {:?}", why),
+            };
 
             let client = Arc::new(Mutex::new(ms_client));
 
-            let state = web::Data::new(AppState { client });
+            let state = web::Data::new(AppState {
+                client,
+                index_name: boxed_index_name,
+            });
 
             env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 

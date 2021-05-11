@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -29,12 +27,4 @@ pub struct UpdateDescription {
 pub struct UpdatePrivacy {
     pub id: String,
     pub new_privacy: String,
-}
-
-/// Returns time in SECONDS
-pub fn get_mutation_time() -> u64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(n) => n.as_secs(),
-        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
-    }
 }

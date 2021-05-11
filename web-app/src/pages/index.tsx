@@ -141,7 +141,7 @@ const IndexPage = () => {
   return (
     <>
       <Head>
-        <title>Create</title>
+        <title>Home</title>
       </Head>
       <header>
         <nav>
