@@ -225,6 +225,12 @@ struct UpdateQuery {
     update_id: u64,
 }
 
+#[derive(Serialize, Deserialize)]
+struct HealthResponse {
+    server_status: String,
+    meilie_health: bool,
+}
+
 #[post("/create")]
 async fn create<'a>(
     info: web::Json<CreateEntry>,
@@ -381,6 +387,22 @@ async fn get_by_id<'a>(
     Ok(HttpResponse::Ok().json(entry))
 }
 
+#[get("/health")]
+async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+    let c_client = &state.client;
+    let arc_client = &c_client.clone();
+    let client = arc_client.lock().unwrap();
+    let meilie_health = client.is_healthy().await;
+
+    let response = HealthResponse {
+        server_status: "ok".to_string(),
+        meilie_health,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
 #[actix_web::main]
 async fn main() -> Result<()> {
     // Sets up master key on MeiliSearch and Authentication endpoints
@@ -433,6 +455,7 @@ async fn main() -> Result<()> {
                     .wrap(HttpAuthentication::bearer(validator))
                     .wrap(Cors::permissive())
                     .app_data(state.clone())
+                    .service(health)
                     .service(get_by_id)
                     .service(bulk)
                     .service(search)
