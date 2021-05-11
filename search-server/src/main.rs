@@ -116,7 +116,17 @@ async fn later_than<'a>(
             .with_filters(&filter)
             .execute()
             .await
-            .unwrap(),
+            .unwrap_or(SearchResults::<Entry> {
+                hits: vec![],
+                offset: 0,
+                limit: 20,
+                nb_hits: 0,
+                exhaustive_nb_hits: false,
+                facets_distribution: None,
+                exhaustive_facets_count: None,
+                processing_time_ms: 0,
+                query: "".to_string(),
+            }),
         _ => {
             let mut offset = 0;
             let mut limit = 100;
@@ -128,7 +138,17 @@ async fn later_than<'a>(
                 .with_limit(limit)
                 .execute()
                 .await
-                .unwrap();
+                .unwrap_or(SearchResults::<Entry> {
+                    hits: vec![],
+                    offset: 0,
+                    limit: 20,
+                    nb_hits: 0,
+                    exhaustive_nb_hits: false,
+                    facets_distribution: None,
+                    exhaustive_facets_count: None,
+                    processing_time_ms: 0,
+                    query: "".to_string(),
+                });
 
             loop {
                 offset = limit;
@@ -141,7 +161,17 @@ async fn later_than<'a>(
                     .with_limit(limit)
                     .execute()
                     .await
-                    .unwrap();
+                    .unwrap_or(SearchResults::<Entry> {
+                        hits: vec![],
+                        offset: 0,
+                        limit: 20,
+                        nb_hits: 0,
+                        exhaustive_nb_hits: false,
+                        facets_distribution: None,
+                        exhaustive_facets_count: None,
+                        processing_time_ms: 0,
+                        query: "".to_string(),
+                    });
 
                 if next.hits.len() == 0 {
                     break;
