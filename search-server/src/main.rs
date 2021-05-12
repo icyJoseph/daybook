@@ -11,24 +11,17 @@ use actix_web::{
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
 use cached::proc_macro::cached;
 use dotenv;
-
 use entry::Entry;
 use env_logger::Env;
-
 use helpers::*;
-
-use meilisearch_sdk::{client::*, indexes::*, progress::*, search::*};
+use meilisearch_sdk::{client::*, progress::*, search::*};
 use mutation::CreateEntry;
-
 use query::*;
-
 use serde::{Deserialize, Serialize};
-
 use start::{check_meilisearch, start_meilisearch};
 use std::env;
 use std::io::Result;
 use std::sync::{Arc, Mutex};
-
 use uuid::Uuid;
 
 impl QueryResponse<Entry> {
@@ -48,6 +41,23 @@ impl QueryResponse<Entry> {
             exhaustive_nb_hits: results.exhaustive_nb_hits,
         }
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct ErrorResponse {
+    reason: String,
+}
+
+#[derive(Serialize)]
+struct StatusResponse {
+    update_id: u64,
+    state: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct HealthResponse {
+    server_status: String,
+    meilie_health: bool,
 }
 
 struct AppState<'a> {
@@ -104,61 +114,16 @@ async fn later_than<'a>(
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index(index_name).await.unwrap();
+    match client.get_index(index_name).await {
+        Ok(index) => {
+            let filter = format!("created_at >= {}", info.created_at);
 
-    let filter = format!("created_at >= {}", info.created_at);
-
-    let mut response = match (info.offset, info.limit) {
-        (Some(offset), Some(limit)) => index
-            .search()
-            .with_offset(offset)
-            .with_limit(limit)
-            .with_filters(&filter)
-            .execute()
-            .await
-            .unwrap_or(SearchResults::<Entry> {
-                hits: vec![],
-                offset: 0,
-                limit: 20,
-                nb_hits: 0,
-                exhaustive_nb_hits: false,
-                facets_distribution: None,
-                exhaustive_facets_count: None,
-                processing_time_ms: 0,
-                query: "".to_string(),
-            }),
-        _ => {
-            let mut offset = 0;
-            let mut limit = 100;
-
-            let mut results: SearchResults<Entry> = index
-                .search()
-                .with_filters(&filter)
-                .with_offset(offset)
-                .with_limit(limit)
-                .execute()
-                .await
-                .unwrap_or(SearchResults::<Entry> {
-                    hits: vec![],
-                    offset: 0,
-                    limit: 20,
-                    nb_hits: 0,
-                    exhaustive_nb_hits: false,
-                    facets_distribution: None,
-                    exhaustive_facets_count: None,
-                    processing_time_ms: 0,
-                    query: "".to_string(),
-                });
-
-            loop {
-                offset = limit;
-                limit += 100;
-
-                let next: SearchResults<Entry> = index
+            let mut response = match (info.offset, info.limit) {
+                (Some(offset), Some(limit)) => index
                     .search()
-                    .with_filters(&filter)
                     .with_offset(offset)
                     .with_limit(limit)
+                    .with_filters(&filter)
                     .execute()
                     .await
                     .unwrap_or(SearchResults::<Entry> {
@@ -171,28 +136,79 @@ async fn later_than<'a>(
                         exhaustive_facets_count: None,
                         processing_time_ms: 0,
                         query: "".to_string(),
-                    });
+                    }),
+                _ => {
+                    let mut offset = 0;
+                    let mut limit = 100;
 
-                if next.hits.len() == 0 {
-                    break;
+                    let mut results: SearchResults<Entry> = index
+                        .search()
+                        .with_filters(&filter)
+                        .with_offset(offset)
+                        .with_limit(limit)
+                        .execute()
+                        .await
+                        .unwrap_or(SearchResults::<Entry> {
+                            hits: vec![],
+                            offset: 0,
+                            limit: 20,
+                            nb_hits: 0,
+                            exhaustive_nb_hits: false,
+                            facets_distribution: None,
+                            exhaustive_facets_count: None,
+                            processing_time_ms: 0,
+                            query: "".to_string(),
+                        });
+
+                    loop {
+                        offset = limit;
+                        limit += 100;
+
+                        let next: SearchResults<Entry> = index
+                            .search()
+                            .with_filters(&filter)
+                            .with_offset(offset)
+                            .with_limit(limit)
+                            .execute()
+                            .await
+                            .unwrap_or(SearchResults::<Entry> {
+                                hits: vec![],
+                                offset: 0,
+                                limit: 20,
+                                nb_hits: 0,
+                                exhaustive_nb_hits: false,
+                                facets_distribution: None,
+                                exhaustive_facets_count: None,
+                                processing_time_ms: 0,
+                                query: "".to_string(),
+                            });
+
+                        if next.hits.len() == 0 {
+                            break;
+                        }
+
+                        for hit in next.hits {
+                            results.hits.push(hit);
+                        }
+
+                        results.processing_time_ms += next.processing_time_ms;
+                    }
+
+                    results
                 }
+            };
 
-                for hit in next.hits {
-                    results.hits.push(hit);
-                }
+            response
+                .hits
+                .sort_by(|a, b| a.result.created_at.cmp(&b.result.created_at).reverse());
 
-                results.processing_time_ms += next.processing_time_ms;
-            }
-
-            results
+            Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
         }
-    };
 
-    response
-        .hits
-        .sort_by(|a, b| a.result.created_at.cmp(&b.result.created_at).reverse());
-
-    Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
 }
 
 #[get("/bulk")]
@@ -208,14 +224,18 @@ async fn bulk<'a>(
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index(index_name).await.unwrap();
+    match client.get_index(index_name).await {
+        Ok(index) => match index.get_documents::<Entry>(None, info.qty, None).await {
+            Ok(all) => Ok(HttpResponse::Ok().json(all)),
+            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                reason: format!("No documents found"),
+            })),
+        },
 
-    let all = index
-        .get_documents::<Entry>(None, info.qty, None)
-        .await
-        .unwrap();
-
-    Ok(HttpResponse::Ok().json(all))
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
 }
 
 #[get("/search")]
@@ -232,33 +252,17 @@ async fn search<'a>(
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index = client.get_index(index_name).await.unwrap();
-
-    let results: SearchResults<Entry> = index
-        .search()
-        .with_query(&info.0.q)
-        .execute()
-        .await
-        .unwrap();
-
-    Ok(HttpResponse::Ok().json(QueryResponse::new(results)))
-}
-
-#[derive(Serialize)]
-struct StatusResponse {
-    update_id: u64,
-    state: String,
-}
-
-#[derive(Serialize, Deserialize)]
-struct UpdateQuery {
-    update_id: u64,
-}
-
-#[derive(Serialize, Deserialize)]
-struct HealthResponse {
-    server_status: String,
-    meilie_health: bool,
+    match client.get_index(index_name).await {
+        Ok(index) => match index.search().with_query(&info.0.q).execute().await {
+            Ok(results) => Ok(HttpResponse::Ok().json(QueryResponse::new(results))),
+            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                reason: format!("Nothing found"),
+            })),
+        },
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
 }
 
 #[post("/create")]
@@ -274,42 +278,55 @@ async fn create<'a>(
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index(index_name).await.unwrap();
+    match client.get_index(index_name).await {
+        Ok(index) => {
+            let created_at = get_current_time_secs();
+            let uuid = Uuid::new_v4();
+            let entry = Entry {
+                id: uuid.to_hyphenated().to_string(),
+                title: info.title.clone(),
+                description: info.description.clone(),
+                created_at,
+                organization: info.organization.clone(),
+                privacy: if info.privacy.is_none() { false } else { true },
+                links: vec![],
+                tags: vec![],
+                images: vec![],
+            };
 
-    let created_at = get_current_time_secs();
-    let uuid = Uuid::new_v4();
+            match index.add_or_replace(&[entry], None).await {
+                Ok(progress) => match progress.get_status().await {
+                    Ok(status) => {
+                        let response = match status {
+                            UpdateStatus::Enqueued { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("processing"),
+                            },
+                            UpdateStatus::Failed { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("failed"),
+                            },
+                            UpdateStatus::Processed { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("done"),
+                            },
+                        };
 
-    let entry = Entry {
-        id: uuid.to_hyphenated().to_string(),
-        title: info.title.clone(),
-        description: info.description.clone(),
-        created_at,
-        organization: info.organization.clone(),
-        privacy: if info.privacy.is_none() { false } else { true },
-        links: vec![],
-        tags: vec![],
-        images: vec![],
-    };
-
-    let progress: Progress = index.add_or_replace(&[entry], None).await.unwrap();
-    let status: UpdateStatus = progress.get_status().await.unwrap();
-
-    let response = match status {
-        UpdateStatus::Enqueued { content } => StatusResponse {
-            update_id: content.update_id,
-            state: "processing".to_string(),
-        },
-        UpdateStatus::Failed { content } => StatusResponse {
-            update_id: content.update_id,
-            state: "failed".to_string(),
-        },
-        UpdateStatus::Processed { content } => StatusResponse {
-            update_id: content.update_id,
-            state: "done".to_string(),
-        },
-    };
-
-    Ok(HttpResponse::Ok().json(response))
+                        Ok(HttpResponse::Ok().json(response))
+                    }
+                    Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                        reason: format!("Unable to get update status"),
+                    })),
+                },
+                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: format!("Failed to create document"),
+                })),
+            }
+        }
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
 }
 
 #[delete("/delete/{id}")]
@@ -318,6 +335,7 @@ async fn delete<'a>(
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
     let to_delete = path.into_inner().0;
+    let c_to_delete = to_delete.clone();
 
     let state = &data.clone();
 
@@ -327,27 +345,38 @@ async fn delete<'a>(
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index(index_name).await.unwrap();
-
-    let progress: Progress = index.delete_document(to_delete).await.unwrap();
-    let status: UpdateStatus = progress.get_status().await.unwrap();
-
-    let response = match status {
-        UpdateStatus::Enqueued { content } => StatusResponse {
-            update_id: content.update_id,
-            state: "processing".to_string(),
+    match client.get_index(index_name).await {
+        Ok(index) => match index.delete_document(to_delete).await {
+            Ok(progress) => match progress.get_status().await {
+                Ok(status) => {
+                    let response = match status {
+                        UpdateStatus::Enqueued { content } => StatusResponse {
+                            update_id: content.update_id,
+                            state: format!("processing"),
+                        },
+                        UpdateStatus::Failed { content } => StatusResponse {
+                            update_id: content.update_id,
+                            state: format!("failed"),
+                        },
+                        UpdateStatus::Processed { content } => StatusResponse {
+                            update_id: content.update_id,
+                            state: format!("done"),
+                        },
+                    };
+                    Ok(HttpResponse::Ok().json(response))
+                }
+                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: format!("Unable to get update status"),
+                })),
+            },
+            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                reason: format!("Nothing to delete. Document id: {}", c_to_delete),
+            })),
         },
-        UpdateStatus::Failed { content } => StatusResponse {
-            update_id: content.update_id,
-            state: "failed".to_string(),
-        },
-        UpdateStatus::Processed { content } => StatusResponse {
-            update_id: content.update_id,
-            state: "done".to_string(),
-        },
-    };
-
-    Ok(HttpResponse::Ok().json(response))
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
 }
 
 #[get("/check_update")]
@@ -363,37 +392,46 @@ async fn check_update<'a>(
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index(index_name).await.unwrap();
+    match client.get_index(index_name).await {
+        Ok(index) => match index.get_all_updates().await {
+            Ok(all_updates) => {
+                let update_id = info.update_id;
 
-    let all_updates: Vec<UpdateStatus> = index.get_all_updates().await.unwrap();
+                let status = all_updates.iter().find(|obj| match obj {
+                    UpdateStatus::Enqueued { content } => content.update_id == update_id,
+                    UpdateStatus::Failed { content } => content.update_id == update_id,
+                    UpdateStatus::Processed { content } => content.update_id == update_id,
+                });
 
-    let update_id = info.update_id;
-    let status = all_updates.iter().find(|obj| match obj {
-        UpdateStatus::Enqueued { content } => content.update_id == update_id,
-        UpdateStatus::Failed { content } => content.update_id == update_id,
-        UpdateStatus::Processed { content } => content.update_id == update_id,
-    });
+                let response = match status {
+                    Some(UpdateStatus::Enqueued { content }) => StatusResponse {
+                        update_id: content.update_id,
+                        state: format!("processing"),
+                    },
+                    Some(UpdateStatus::Failed { content }) => StatusResponse {
+                        update_id: content.update_id,
+                        state: format!("failed"),
+                    },
+                    Some(UpdateStatus::Processed { content }) => StatusResponse {
+                        update_id: content.update_id,
+                        state: format!("done"),
+                    },
+                    _ => StatusResponse {
+                        update_id,
+                        state: format!("not found"),
+                    },
+                };
 
-    let response = match status {
-        Some(UpdateStatus::Enqueued { content }) => StatusResponse {
-            update_id: content.update_id,
-            state: "processing".to_string(),
+                Ok(HttpResponse::Ok().json(response))
+            }
+            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                reason: format!("Update `{}` not found", info.update_id),
+            })),
         },
-        Some(UpdateStatus::Failed { content }) => StatusResponse {
-            update_id: content.update_id,
-            state: "failed".to_string(),
-        },
-        Some(UpdateStatus::Processed { content }) => StatusResponse {
-            update_id: content.update_id,
-            state: "done".to_string(),
-        },
-        _ => StatusResponse {
-            update_id,
-            state: "not found".to_string(),
-        },
-    };
-
-    Ok(HttpResponse::Ok().json(response))
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
 }
 
 #[get("/entry/{id}")]
@@ -409,12 +447,21 @@ async fn get_by_id<'a>(
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
 
-    let index: Index = client.get_index(index_name).await.unwrap();
-
-    let entry_id = path.into_inner().0;
-    let entry = index.get_document::<Entry>(entry_id).await.unwrap();
-
-    Ok(HttpResponse::Ok().json(entry))
+    match client.get_index(index_name).await {
+        Ok(index) => {
+            let entry_id = path.into_inner().0;
+            let c_entry_id = entry_id.clone();
+            match index.get_document::<Entry>(entry_id).await {
+                Ok(entry) => Ok(HttpResponse::Ok().json(entry)),
+                Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                    reason: format!("No entry found with id: {}", c_entry_id),
+                })),
+            }
+        }
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
 }
 
 #[get("/health")]
@@ -423,6 +470,7 @@ async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let c_client = &state.client;
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
+
     let meilie_health = client.is_healthy().await;
 
     let response = HealthResponse {
@@ -443,7 +491,7 @@ async fn main() -> Result<()> {
     let actix_url_key = "ACTIX_SERVER_URL";
     let index_name_key = "INDEX_NAME";
 
-    // Run, only if all three variables exist
+    // Run, only if all four variables exist
     match (
         env::var(ms_secret_key),
         env::var(ms_url_key),

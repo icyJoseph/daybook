@@ -17,6 +17,11 @@ pub struct FromQuery {
     pub created_at: u64,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct UpdateQuery {
+    pub update_id: u64,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueryResponse<T> {
     pub hits: Vec<T>,
