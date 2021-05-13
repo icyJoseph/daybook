@@ -1,93 +1,11 @@
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Head from "next/head";
 import { useUser } from "@auth0/nextjs-auth0";
-import { Entry } from "../interfaces/entry";
-import Link from "next/link";
 
-const LoginControls = () => {
-  const { user } = useUser();
+import { Button, Box, Text, TextInput, Form, FormField } from "grommet";
 
-  return (
-    <ul>
-      <li>
-        {user ? (
-          <a href="/api/auth/logout">Logout</a>
-        ) : (
-          <a href="/api/auth/login">Login</a>
-        )}
-      </li>
-    </ul>
-  );
-};
-
-const EntryCard = ({ id, created_at, title, description }: Entry) => {
-  const date = new Date(created_at * 1000).toLocaleDateString();
-
-  return (
-    <li>
-      <h2>{title}</h2>
-      <p>{description}</p>
-      <time dateTime={date}>{date}</time>
-
-      <Link href={`/edit/${id}`}>
-        <a>Edit</a>
-      </Link>
-      <Link href={`/delete/${id}`}>
-        <a>Delete</a>
-      </Link>
-    </li>
-  );
-};
-
-const useConstant = <T,>(init: () => T): T => {
-  const ref = useRef<T | null>(null);
-
-  if (ref.current === null) {
-    ref.current = init();
-  }
-
-  return ref.current;
-};
-
-const LastWeek = ({
-  updateSearchTime
-}: {
-  updateSearchTime: Dispatch<SetStateAction<number | null>>;
-}) => {
-  const [entries, setEntries] = useState<Entry[]>([]);
-
-  const date = useConstant(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 13);
-    return Math.floor(date.getTime() / 1000);
-  });
-
-  useEffect(() => {
-    fetch(`/api/search/later_than?created_at=${date}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if ("hits" in data) {
-          setEntries(data.hits);
-        }
-        if ("processing_time_ms" in data) {
-          updateSearchTime(data.processing_time_ms);
-        } else {
-          setEntries([]);
-        }
-      });
-  }, [date]);
-
-  return (
-    <>
-      <h2>Last week</h2>
-      <ul>
-        {entries.map((entry) => (
-          <EntryCard key={entry.id} {...entry} />
-        ))}
-      </ul>
-    </>
-  );
-};
+import { Entry } from "interfaces/entry";
+import { EntryCard } from "components/EntryCard";
 
 const Search = () => {
   const [items, setItems] = useState<Entry[]>([]);
@@ -96,69 +14,69 @@ const Search = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <>
-      <form
+      <Form
         onSubmit={async (e) => {
           e.preventDefault();
           const query = inputRef.current?.value?.trim();
           if (query) {
-            const data = await fetch(
-              `/api/search/query?q=${query}`
-            ).then((res) => res.json());
+            try {
+              const data = await fetch(`/api/search/query?q=${query}`).then(
+                (res) => res.json()
+              );
 
-            if ("hits" in data) {
-              setItems(data.hits);
-            }
-            if ("processing_time_ms" in data) {
-              setSearchTime(data.processing_time_ms);
+              if ("hits" in data) {
+                setItems(data.hits);
+              }
+              if ("processing_time_ms" in data) {
+                setSearchTime(data.processing_time_ms);
+              }
+            } catch (e) {
+              setItems([]);
+              setSearchTime(0);
             }
           } else {
             setItems([]);
+            setSearchTime(0);
           }
         }}
+        style={{ position: "sticky", top: 0, background: "white" }}
       >
-        <input ref={inputRef}></input>
-        <button>Search</button>
-      </form>
-      {searchTime === null ? null : <span>Search time: {searchTime} ms</span>}
-      {items.length > 0 ? (
+        <FormField>
+          <TextInput
+            placeholder="What are you looking for?"
+            ref={inputRef}
+          ></TextInput>
+        </FormField>
+        <Box align="center" gap="medium">
+          <Button type="submit" primary label="Search" />
+        </Box>
+        {searchTime === null ? null : (
+          <Text margin={{ top: "8px" }}>Search time: {searchTime} ms</Text>
+        )}
+      </Form>
+      {items.length > 0 && (
         <ul>
           {items.map((item) => (
-            <EntryCard key={item.id} {...item} />
+            <EntryCard key={item.id} {...item} preview />
           ))}
         </ul>
-      ) : (
-        <LastWeek updateSearchTime={setSearchTime} />
       )}
     </>
   );
 };
 
 const IndexPage = () => {
-  const { user, error, isLoading } = useUser();
+  const { isLoading } = useUser();
 
   if (isLoading) return null;
 
   return (
     <>
       <Head>
-        <title>Home</title>
+        <title>Daybook</title>
       </Head>
-      <header>
-        <nav>
-          <h1>Daybook</h1>
-          {!error ? <LoginControls /> : <span>{error.message}</span>}
-        </nav>
-      </header>
-      <main>
-        {user ? (
-          <>
-            <span>{user.name}</span>
-            <Search />
-          </>
-        ) : (
-          <span>no user</span>
-        )}
-      </main>
+
+      <Search />
     </>
   );
 };

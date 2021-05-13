@@ -1,12 +1,25 @@
 import Head from "next/head";
-import { withPageAuthRequired, UserProfile } from "@auth0/nextjs-auth0";
-import { useRef, FormEvent } from "react";
+import auth0 from "utils/auth0";
+import { useRef } from "react";
+import {
+  Box,
+  FormField,
+  Heading,
+  Form,
+  Button,
+  FormExtendedEvent,
+  TextInput,
+  TextArea
+} from "grommet";
+import { useRouter } from "next/router";
 
-export default function Profile({ user }: { user: UserProfile }) {
+export default function Profile() {
   const titleRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const router = useRouter();
+
+  const handleSubmit = async (e: FormExtendedEvent<HTMLFormElement>) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -14,30 +27,52 @@ export default function Profile({ user }: { user: UserProfile }) {
     const description = (descriptionRef.current?.value ?? "").trim();
 
     if (title && description) {
-      fetch("/api/search/create", {
+      await fetch("/api/search/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({ title, description })
       });
+
+      router.push("/");
     }
   };
+
   return (
     <>
       <Head>
         <title>Create</title>
       </Head>
-      <div>
-        <h1>Hello {user.name}</h1>
-        <form onSubmit={handleSubmit}>
-          <input name="title" ref={titleRef} />
-          <textarea name="description" ref={descriptionRef} />
-          <button type="submit">Submit</button>
-        </form>
-      </div>
+      <Box as="header">
+        <Heading as="h2" margin="0 auto">
+          Create a new entry
+        </Heading>
+      </Box>
+      <Box as="main" width={{ max: "45ch" }} margin="12px auto">
+        <Form onSubmit={handleSubmit}>
+          <FormField>
+            <TextInput
+              name="title"
+              ref={titleRef}
+              placeholder="title"
+              autoComplete="off"
+            />
+          </FormField>
+          <FormField>
+            <TextArea
+              name="description"
+              ref={descriptionRef}
+              rows={5}
+              resize="vertical"
+              placeholder="description"
+            />
+          </FormField>
+          <Button type="submit" primary label="Create" />
+        </Form>
+      </Box>
     </>
   );
 }
 
-export const getServerSideProps = withPageAuthRequired();
+export const getServerSideProps = auth0.withPageAuthRequired();

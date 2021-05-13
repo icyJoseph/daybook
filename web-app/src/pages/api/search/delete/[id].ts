@@ -1,11 +1,11 @@
-import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import auth0 from "utils/auth0";
 import { NextApiRequest, NextApiResponse } from "next";
 
 async function deleteEntry(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "DELETE") return res.status(401).json({ statusCode: 401 });
 
   try {
-    const session = await getAccessToken(req, res);
+    const session = await auth0.getAccessToken(req, res);
 
     if (!session) return res.status(401).json({ statusCode: 401 });
 
@@ -37,4 +37,4 @@ async function deleteEntry(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default withApiAuthRequired(deleteEntry);
+export default auth0.withApiAuthRequired(deleteEntry);
