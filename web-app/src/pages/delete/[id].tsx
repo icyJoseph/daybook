@@ -1,20 +1,10 @@
 import Head from "next/head";
-import {
-  withPageAuthRequired,
-  UserProfile,
-  getAccessToken
-} from "@auth0/nextjs-auth0";
+import { withPageAuthRequired, getAccessToken } from "@auth0/nextjs-auth0";
 import { GetServerSidePropsContext } from "next";
 
-import { Entry } from "../../interfaces/entry";
+import { Entry } from "interfaces/entry";
 
-export default function DeleteEntry({
-  user,
-  entry
-}: {
-  user: UserProfile;
-  entry: Entry;
-}) {
+export default function DeleteEntry({ entry }: { entry: Entry }) {
   console.log(entry);
   return (
     <>
@@ -22,7 +12,6 @@ export default function DeleteEntry({
         <title>Delete</title>
       </Head>
       <div>
-        <h1>Hello {user.name}</h1>
         <span>Delete</span>
       </div>
     </>

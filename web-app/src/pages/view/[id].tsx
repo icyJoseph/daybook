@@ -2,18 +2,22 @@ import Head from "next/head";
 import { withPageAuthRequired, getAccessToken } from "@auth0/nextjs-auth0";
 import { GetServerSidePropsContext } from "next";
 
+import { Box, Heading, Paragraph } from "grommet";
+
 import { Entry } from "interfaces/entry";
 
-export default function EditEntry({ entry }: { entry: Entry }) {
-  console.log(entry);
+export default function ViewEntry({ entry }: { entry: Entry }) {
   return (
     <>
       <Head>
-        <title>Edit</title>
+        <title>{entry.title}</title>
       </Head>
-      <div>
-        <span>Edit</span>
-      </div>
+      <Box width={{ max: "45ch" }} margin="0 auto">
+        <Heading>{entry.title}</Heading>
+        <Paragraph>
+          <span>{entry.description}</span>
+        </Paragraph>
+      </Box>
     </>
   );
 }
