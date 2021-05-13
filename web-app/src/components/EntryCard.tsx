@@ -27,8 +27,10 @@ export const EntryCard = ({
 
   return (
     <Card background="light-1" margin="8px 8px 16px">
-      <CardHeader pad="medium" flex direction="column">
-        <Heading size="small">{title}</Heading>
+      <CardHeader pad="small" flex direction="column">
+        <Heading size="1.5rem" alignSelf="start">
+          {title}
+        </Heading>
 
         <Box flex direction="row" justify="center">
           <Calendar />
