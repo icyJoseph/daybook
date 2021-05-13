@@ -44,10 +44,12 @@ export default function Profile() {
       <Head>
         <title>Create</title>
       </Head>
-      <header>
-        <Heading as="h2">Create a new entry</Heading>
-      </header>
-      <Box as="main" width="50%">
+      <Box as="header">
+        <Heading as="h2" margin="0 auto">
+          Create a new entry
+        </Heading>
+      </Box>
+      <Box as="main" width={{ max: "45ch" }} margin="12px auto">
         <Form onSubmit={handleSubmit}>
           <FormField>
             <TextInput
@@ -61,6 +63,8 @@ export default function Profile() {
             <TextArea
               name="description"
               ref={descriptionRef}
+              rows={5}
+              resize="vertical"
               placeholder="description"
             />
           </FormField>

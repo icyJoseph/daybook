@@ -13,7 +13,7 @@ export default function ViewEntry({ entry }: { entry: Entry }) {
         <title>{entry.title}</title>
       </Head>
       <Box width={{ max: "45ch" }} margin="0 auto">
-        <Heading>{entry.title}</Heading>
+        <Heading margin={{ bottom: "12px" }}>{entry.title}</Heading>
         <Paragraph>
           <span>{entry.description}</span>
         </Paragraph>
