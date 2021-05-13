@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { withPageAuthRequired, getAccessToken } from "@auth0/nextjs-auth0";
+import auth0 from "utils/auth0";
 import { GetServerSidePropsContext } from "next";
 
 import { Entry } from "interfaces/entry";
@@ -18,14 +18,17 @@ export default function EditEntry({ entry }: { entry: Entry }) {
   );
 }
 
-export const getServerSideProps = withPageAuthRequired({
+export const getServerSideProps = auth0.withPageAuthRequired({
   getServerSideProps: async (context: GetServerSidePropsContext) => {
     const { id } = context.query;
 
     if (!id) return { redirect: { destination: "/", permanent: false } };
 
     try {
-      const { accessToken } = await getAccessToken(context.req, context.res);
+      const { accessToken } = await auth0.getAccessToken(
+        context.req,
+        context.res
+      );
 
       const entry = await fetch(`${process.env.PROXY_URL}/entry/${id}`, {
         headers: { Authorization: `Bearer ${accessToken}` }

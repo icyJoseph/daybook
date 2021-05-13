@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { withPageAuthRequired } from "@auth0/nextjs-auth0";
+import auth0 from "utils/auth0";
 import { useRef } from "react";
 import {
   Box,
@@ -71,4 +71,4 @@ export default function Profile() {
   );
 }
 
-export const getServerSideProps = withPageAuthRequired();
+export const getServerSideProps = auth0.withPageAuthRequired();
