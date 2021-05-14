@@ -1,5 +1,5 @@
-import auth0 from "utils/auth0";
 import { NextApiRequest, NextApiResponse } from "next";
+import auth0 from "utils/auth0";
 
 async function deleteEntry(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "DELETE") return res.status(401).json({ statusCode: 401 });
