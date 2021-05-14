@@ -1,30 +1,27 @@
 import Head from "next/head";
 import auth0 from "utils/auth0";
-import { useRef } from "react";
+import { FieldValues, useForm } from "react-hook-form";
 import {
   Box,
+  CheckBox,
   FormField,
   Heading,
   Form,
   Button,
-  FormExtendedEvent,
   TextInput,
   TextArea
 } from "grommet";
 import { useRouter } from "next/router";
 
 export default function Profile() {
-  const titleRef = useRef<HTMLInputElement>(null);
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
-
   const router = useRouter();
 
-  const handleSubmit = async (e: FormExtendedEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const { register, handleSubmit } = useForm();
 
-    const title = (titleRef.current?.value ?? "").trim();
-    const description = (descriptionRef.current?.value ?? "").trim();
+  const onSubmit = async (data: FieldValues) => {
+    const title = (data?.["title"] ?? "").trim();
+    const description = (data?.["description"] ?? "").trim();
+    const privacy = data?.["privacy"] ?? false;
 
     if (title && description) {
       await fetch("/api/search/create", {
@@ -32,7 +29,7 @@ export default function Profile() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ title, description })
+        body: JSON.stringify({ title, description, privacy })
       });
 
       router.push("/");
@@ -50,24 +47,26 @@ export default function Profile() {
         </Heading>
       </Box>
       <Box as="main" width={{ max: "45ch" }} margin="12px auto">
-        <Form onSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit(onSubmit)}>
           <FormField>
             <TextInput
-              name="title"
-              ref={titleRef}
               placeholder="title"
               autoComplete="off"
+              {...register("title", { required: true })}
             />
           </FormField>
           <FormField>
             <TextArea
-              name="description"
-              ref={descriptionRef}
               rows={5}
               resize="vertical"
               placeholder="description"
+              {...register("description", { required: true })}
             />
           </FormField>
+
+          <Box margin={{ vertical: "2rem" }}>
+            <CheckBox label="Private?" {...register("privacy")} />
+          </Box>
           <Button type="submit" primary label="Create" />
         </Form>
       </Box>

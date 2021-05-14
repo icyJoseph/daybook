@@ -1,8 +1,8 @@
-import Head from "next/head";
-import auth0 from "utils/auth0";
 import { GetServerSidePropsContext } from "next";
+import Head from "next/head";
 
 import { Entry } from "interfaces/entry";
+import auth0 from "utils/auth0";
 
 export default function EditEntry({ entry }: { entry: Entry }) {
   console.log(entry);
