@@ -21,6 +21,7 @@ import {
 } from "components/Grid";
 import { Recent } from "components/Recent";
 import { SideMenu } from "components/SideMenu";
+import { PollingUpdates } from "hooks/usePollingUpdates";
 
 export const TopBar: FC = () => {
   const { user } = useUser();
@@ -61,6 +62,7 @@ const WithUser: FC<{
   picture: UserProfile["picture"];
 }> = ({ shouldOpen, picture, setOpen, children }) => (
   <Fragment>
+    <PollingUpdates />
     <SideMenu gridArea="g-menu" recentHandler={setOpen} avatarUrl={picture} />
     <GridWorkspace>
       <GridAside as="section" open={shouldOpen}>

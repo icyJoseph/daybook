@@ -1,33 +1,12 @@
-import { useState, useEffect } from "react";
 import { Box, Heading } from "grommet";
 
 import { EntryCard } from "components/EntryCard";
-import { useConstant } from "hooks/useConstant";
-import { Entry } from "interfaces/entry";
+import { useRecent } from "hooks/useRecent";
 
 export const Recent = () => {
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const recent = useRecent();
 
-  const date = useConstant(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 7);
-    return Math.floor(date.getTime() / 1000);
-  });
-
-  useEffect(() => {
-    fetch(`/api/search/later_than?created_at=${date}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if ("hits" in data) {
-          setEntries(data.hits);
-        } else {
-          setEntries([]);
-        }
-      })
-      .catch(() => {
-        setEntries([]);
-      });
-  }, [date]);
+  const hits = recent.data?.hits ?? [];
 
   return (
     <>
@@ -40,7 +19,7 @@ export const Recent = () => {
         </Heading>
       </Box>
       <ul>
-        {entries.map((entry) => (
+        {hits.map((entry) => (
           <EntryCard key={entry.id} {...entry} preview />
         ))}
       </ul>

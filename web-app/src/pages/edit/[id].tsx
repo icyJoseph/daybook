@@ -2,14 +2,18 @@ import { GetServerSidePropsContext } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { FieldValues } from "react-hook-form";
+import { useQueryClient } from "react-query";
 import { Box, Heading, Button } from "grommet";
 
 import { EntryForm } from "components/EntryForm";
 import { Entry } from "interfaces/entry";
 import auth0 from "utils/auth0";
+import { Update } from "interfaces/update";
 
 export default function EditEntry({ entry }: { entry: Entry }) {
   const router = useRouter();
+
+  const queryClient = useQueryClient();
 
   const onSubmit = async (data: FieldValues) => {
     const title = (data?.["title"] ?? "").trim();
@@ -17,7 +21,7 @@ export default function EditEntry({ entry }: { entry: Entry }) {
     const privacy = data?.["privacy"] ?? false;
 
     if (title && description) {
-      await fetch("/api/search/edit", {
+      const updateInfo = await fetch("/api/search/edit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -26,7 +30,12 @@ export default function EditEntry({ entry }: { entry: Entry }) {
           current: entry,
           next: { ...entry, title, description, privacy }
         })
-      });
+      }).then((res) => res.json());
+
+      queryClient.setQueryData<Update[]>("updates", (prev = []) => [
+        ...prev,
+        updateInfo
+      ]);
 
       router.push("/");
     }

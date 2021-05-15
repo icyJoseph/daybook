@@ -2,22 +2,29 @@ import { MouseEventHandler } from "react";
 import { GetServerSidePropsContext } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
+import { useQueryClient } from "react-query";
 
 import { Box, Button, Heading, Paragraph, Text } from "grommet";
 import { Trash } from "grommet-icons";
 
 import { Entry } from "interfaces/entry";
 import auth0 from "utils/auth0";
+import { Update } from "interfaces/update";
 
 export default function DeleteEntry({ entry }: { entry: Entry }) {
   const router = useRouter();
-
+  const queryClient = useQueryClient();
   const deleteHandler: MouseEventHandler<HTMLButtonElement> = async () => {
     const proceed = window.confirm(`Delete: ${entry.title}?`);
     if (proceed) {
-      await fetch(`/api/search/delete/${entry.id}`, { method: "DELETE" }).then(
-        (res) => res.json()
-      );
+      const updateInfo = await fetch(`/api/search/delete/${entry.id}`, {
+        method: "DELETE"
+      }).then((res) => res.json());
+
+      queryClient.setQueryData<Update[]>("updates", (prev = []) => [
+        ...prev,
+        updateInfo
+      ]);
 
       router.replace("/");
     }
