@@ -57,9 +57,13 @@ export const getServerSideProps = auth0.withPageAuthRequired({
         context.res
       );
 
-      const entry = await fetch(`${process.env.PROXY_URL}/entry/${id}`, {
+      const res = await fetch(`${process.env.PROXY_URL}/entry/${id}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
-      }).then((res) => res.json());
+      });
+
+      if (!res.ok) throw res;
+
+      const entry = await res.json();
 
       return { props: { entry } };
     } catch (err) {

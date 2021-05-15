@@ -1,22 +1,13 @@
 import Head from "next/head";
-import auth0 from "utils/auth0";
-import { FieldValues, useForm } from "react-hook-form";
-import {
-  Box,
-  CheckBox,
-  FormField,
-  Heading,
-  Form,
-  Button,
-  TextInput,
-  TextArea
-} from "grommet";
 import { useRouter } from "next/router";
+import { FieldValues } from "react-hook-form";
+import { Box, Button, Heading } from "grommet";
 
-export default function Profile() {
+import { EntryForm } from "components/EntryForm";
+import auth0 from "utils/auth0";
+
+export default function Create() {
   const router = useRouter();
-
-  const { register, handleSubmit } = useForm();
 
   const onSubmit = async (data: FieldValues) => {
     const title = (data?.["title"] ?? "").trim();
@@ -47,28 +38,9 @@ export default function Profile() {
         </Heading>
       </Box>
       <Box as="main" width={{ max: "45ch" }} margin="12px auto">
-        <Form onSubmit={handleSubmit(onSubmit)}>
-          <FormField>
-            <TextInput
-              placeholder="title"
-              autoComplete="off"
-              {...register("title", { required: true })}
-            />
-          </FormField>
-          <FormField>
-            <TextArea
-              rows={5}
-              resize="vertical"
-              placeholder="description"
-              {...register("description", { required: true })}
-            />
-          </FormField>
-
-          <Box margin={{ vertical: "2rem" }}>
-            <CheckBox label="Private?" {...register("privacy")} />
-          </Box>
+        <EntryForm onSubmit={onSubmit}>
           <Button type="submit" primary label="Create" />
-        </Form>
+        </EntryForm>
       </Box>
     </>
   );

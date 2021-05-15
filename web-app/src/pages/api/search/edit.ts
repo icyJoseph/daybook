@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import auth0 from "utils/auth0";
 
-async function update(req: NextApiRequest, res: NextApiResponse) {
+async function edit(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(401).json({ statusCode: 401 });
 
   try {
@@ -21,7 +21,7 @@ async function update(req: NextApiRequest, res: NextApiResponse) {
 
     const update = { ...current, ...nextRest };
 
-    const data = await fetch(`${process.env.PROXY_URL}/create`, {
+    const data = await fetch(`${process.env.PROXY_URL}/edit`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -43,4 +43,4 @@ async function update(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default auth0.withApiAuthRequired(update);
+export default auth0.withApiAuthRequired(edit);
