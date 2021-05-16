@@ -18,10 +18,7 @@ export const Recent = ({ days = 7 }) => {
 
   return (
     <>
-      <StickyBox
-        background="white"
-        style={{ padding: "8px", position: "sticky", top: 0 }}
-      >
+      <StickyBox background="white">
         <Heading as="h3" size="small" responsive>
           Recent
         </Heading>
