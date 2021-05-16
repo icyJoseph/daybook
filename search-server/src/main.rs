@@ -15,7 +15,7 @@ use entry::Entry;
 use env_logger::Env;
 use helpers::*;
 use meilisearch_sdk::{client::*, progress::*, search::*};
-use mutation::CreateEntry;
+use mutation::*;
 use query::*;
 use serde::{Deserialize, Serialize};
 use start::{check_meilisearch, start_meilisearch};
@@ -288,7 +288,10 @@ async fn create<'a>(
                 description: info.description.clone(),
                 created_at,
                 organization: info.organization.clone(),
-                privacy: if info.privacy.is_none() { false } else { true },
+                privacy: match info.privacy {
+                    Some(p) => p,
+                    None => false,
+                },
                 links: vec![],
                 tags: vec![],
                 images: vec![],
@@ -318,6 +321,91 @@ async fn create<'a>(
                         reason: format!("Unable to get update status"),
                     })),
                 },
+                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: format!("Failed to create document"),
+                })),
+            }
+        }
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
+}
+
+#[post("/edit")]
+async fn edit<'a>(
+    info: web::Json<EditEntry>,
+    data: web::Data<AppState<'a>>,
+) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let index_name = &state.index_name;
+
+    let c_client = &state.client;
+    let arc_client = &c_client.clone();
+    let client = arc_client.lock().unwrap();
+
+    match client.get_index(index_name).await {
+        Ok(index) => {
+            let current_id = info.get_id();
+            match index.get_document::<Entry>(current_id).await {
+                Ok(current) => {
+                    let entry = Entry {
+                        id: info.get_id(),
+                        created_at: current.created_at,
+                        title: match &info.title {
+                            Some(val) => val.to_string(),
+                            None => current.title,
+                        },
+                        description: match &info.description {
+                            Some(val) => val.to_string(),
+                            None => current.description,
+                        },
+
+                        organization: match &info.organization {
+                            Some(val) => Some(val.to_string()),
+                            None => current.organization,
+                        },
+
+                        privacy: match &info.privacy {
+                            Some(val) => *val,
+                            None => current.privacy,
+                        },
+
+                        links: vec![],
+                        tags: vec![],
+                        images: vec![],
+                    };
+
+                    match index.add_or_update(&[entry], None).await {
+                        Ok(progress) => match progress.get_status().await {
+                            Ok(status) => {
+                                let response = match status {
+                                    UpdateStatus::Enqueued { content } => StatusResponse {
+                                        update_id: content.update_id,
+                                        state: format!("processing"),
+                                    },
+                                    UpdateStatus::Failed { content } => StatusResponse {
+                                        update_id: content.update_id,
+                                        state: format!("failed"),
+                                    },
+                                    UpdateStatus::Processed { content } => StatusResponse {
+                                        update_id: content.update_id,
+                                        state: format!("done"),
+                                    },
+                                };
+
+                                Ok(HttpResponse::Ok().json(response))
+                            }
+                            Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                                reason: format!("Unable to get update status"),
+                            })),
+                        },
+                        Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                            reason: format!("Failed to create document"),
+                        })),
+                    }
+                }
                 Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
                     reason: format!("Failed to create document"),
                 })),
@@ -539,6 +627,7 @@ async fn main() -> Result<()> {
                     .service(search)
                     .service(later_than)
                     .service(create)
+                    .service(edit)
                     .service(check_update)
                     .service(delete)
             })

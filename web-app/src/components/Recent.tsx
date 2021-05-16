@@ -1,46 +1,33 @@
-import { useState, useEffect } from "react";
-import { Box, Heading } from "grommet";
+import styled from "styled-components";
+import { Box, BoxExtendedProps, Heading } from "grommet";
 
 import { EntryCard } from "components/EntryCard";
-import { useConstant } from "hooks/useConstant";
-import { Entry } from "interfaces/entry";
+import { useRecent } from "hooks/useRecent";
 
-export const Recent = () => {
-  const [entries, setEntries] = useState<Entry[]>([]);
+const StickyBox = styled(Box)<BoxExtendedProps>`
+  position: sticky;
+  top: 0;
+  padding: 1rem;
+  box-shadow: ${({ theme }) => theme.global?.elevation?.light?.small};
+`;
 
-  const date = useConstant(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 7);
-    return Math.floor(date.getTime() / 1000);
-  });
+export const Recent = ({ days = 7 }) => {
+  const recent = useRecent(days);
 
-  useEffect(() => {
-    fetch(`/api/search/later_than?created_at=${date}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if ("hits" in data) {
-          setEntries(data.hits);
-        } else {
-          setEntries([]);
-        }
-      })
-      .catch(() => {
-        setEntries([]);
-      });
-  }, [date]);
+  const hits = recent.data?.hits ?? [];
 
   return (
     <>
-      <Box
+      <StickyBox
         background="white"
         style={{ padding: "8px", position: "sticky", top: 0 }}
       >
         <Heading as="h3" size="small" responsive>
           Recent
         </Heading>
-      </Box>
+      </StickyBox>
       <ul>
-        {entries.map((entry) => (
+        {hits.map((entry) => (
           <EntryCard key={entry.id} {...entry} preview />
         ))}
       </ul>

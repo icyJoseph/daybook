@@ -1,39 +1,38 @@
 import Head from "next/head";
-import auth0 from "utils/auth0";
-import { useRef } from "react";
-import {
-  Box,
-  FormField,
-  Heading,
-  Form,
-  Button,
-  FormExtendedEvent,
-  TextInput,
-  TextArea
-} from "grommet";
 import { useRouter } from "next/router";
+import { FieldValues } from "react-hook-form";
+import { useQueryClient } from "react-query";
+import { Box, Button, Heading } from "grommet";
 
-export default function Profile() {
-  const titleRef = useRef<HTMLInputElement>(null);
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+import { EntryForm } from "components/EntryForm";
+import auth0 from "utils/auth0";
+import { Update } from "interfaces/update";
 
+export default function Create() {
   const router = useRouter();
 
-  const handleSubmit = async (e: FormExtendedEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const queryClient = useQueryClient();
 
-    const title = (titleRef.current?.value ?? "").trim();
-    const description = (descriptionRef.current?.value ?? "").trim();
+  const onSubmit = async (data: FieldValues) => {
+    const title = (data?.["title"] ?? "").trim();
+    const description = (data?.["description"] ?? "").trim();
+    const privacy = data?.["privacy"] ?? false;
 
     if (title && description) {
-      await fetch("/api/search/create", {
+      const updateInfo: Update = await fetch("/api/search/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ title, description })
-      });
+        body: JSON.stringify({ title, description, privacy })
+      }).then((res) => res.json());
+
+      // add updateInfo to total update query
+
+      queryClient.setQueryData<Update[]>("updates", (prev = []) => [
+        ...prev,
+        updateInfo
+      ]);
 
       router.push("/");
     }
@@ -50,26 +49,9 @@ export default function Profile() {
         </Heading>
       </Box>
       <Box as="main" width={{ max: "45ch" }} margin="12px auto">
-        <Form onSubmit={handleSubmit}>
-          <FormField>
-            <TextInput
-              name="title"
-              ref={titleRef}
-              placeholder="title"
-              autoComplete="off"
-            />
-          </FormField>
-          <FormField>
-            <TextArea
-              name="description"
-              ref={descriptionRef}
-              rows={5}
-              resize="vertical"
-              placeholder="description"
-            />
-          </FormField>
+        <EntryForm onSubmit={onSubmit}>
           <Button type="submit" primary label="Create" />
-        </Form>
+        </EntryForm>
       </Box>
     </>
   );

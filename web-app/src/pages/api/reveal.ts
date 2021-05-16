@@ -1,8 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { stegcloak } from "utils/cloak";
 import auth0 from "utils/auth0";
 
-async function deleteEntry(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "DELETE") return res.status(401).json({ statusCode: 401 });
+async function reveal(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") return res.status(401).json({ statusCode: 401 });
 
   try {
     const session = await auth0.getAccessToken(req, res);
@@ -13,18 +14,11 @@ async function deleteEntry(req: NextApiRequest, res: NextApiResponse) {
 
     if (!accessToken) return res.status(401).json({ statusCode: 401 });
 
-    const { id } = req.query;
+    const encrypted = req.body;
 
-    if (!id) return res.status(500).json({ statusCode: 500 });
+    const revealed = stegcloak.reveal(encrypted, process.env.STEGCLOAK_SECRET);
 
-    const data = await fetch(`${process.env.PROXY_URL}/delete/${id}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    }).then((res) => res.json());
-
-    return res.json(data);
+    return res.json({ revealed });
   } catch (err) {
     if ("code" in err) {
       if (err.code === "access_token_expired") {
@@ -37,4 +31,4 @@ async function deleteEntry(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default auth0.withApiAuthRequired(deleteEntry);
+export default auth0.withApiAuthRequired(reveal);

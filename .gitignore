@@ -34,7 +34,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-
 # rust
 target
 
@@ -44,3 +43,6 @@ data.ms
 meilisearch
 .secrets
 .http
+
+# Caddyfile
+Caddyfile

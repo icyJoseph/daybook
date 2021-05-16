@@ -1,12 +1,39 @@
-import Head from "next/head";
-import auth0 from "utils/auth0";
+import { useEffect, useState } from "react";
 import { GetServerSidePropsContext } from "next";
-
+import Head from "next/head";
 import { Box, Heading, Paragraph } from "grommet";
 
 import { Entry } from "interfaces/entry";
+import { stegcloak } from "utils/cloak";
+import auth0 from "utils/auth0";
+import { Fab } from "components/Fab";
+import { Hide } from "grommet-icons";
 
 export default function ViewEntry({ entry }: { entry: Entry }) {
+  const [cloak, setCloak] = useState(entry.privacy);
+  const [revealed, setRevealed] = useState(entry.description);
+
+  useEffect(() => {
+    if (entry.privacy) {
+      setCloak(true);
+      const controller = new AbortController();
+      fetch("/api/reveal", {
+        method: "POST",
+        body: entry.description,
+        signal: controller.signal
+      })
+        .then((res) => res.json())
+        .then(({ revealed }) => setRevealed(revealed));
+
+      return () => controller.abort();
+    } else {
+      setCloak(false);
+      setRevealed(entry.description);
+    }
+  }, [entry.privacy, entry.description]);
+
+  const description = cloak ? entry.description : revealed;
+
   return (
     <>
       <Head>
@@ -14,9 +41,14 @@ export default function ViewEntry({ entry }: { entry: Entry }) {
       </Head>
       <Box width={{ max: "45ch" }} margin="0 auto">
         <Heading margin={{ bottom: "12px" }}>{entry.title}</Heading>
-        <Paragraph>
-          <span>{entry.description}</span>
-        </Paragraph>
+        <Paragraph>{description}</Paragraph>
+        {entry.privacy && (
+          <Fab
+            hoverIndicator
+            icon={<Hide size="large" color={cloak ? "neutral-2" : "brand"} />}
+            onClick={() => setCloak((x) => !x)}
+          />
+        )}
       </Box>
     </>
   );
@@ -34,9 +66,21 @@ export const getServerSideProps = auth0.withPageAuthRequired({
         context.res
       );
 
-      const entry = await fetch(`${process.env.PROXY_URL}/entry/${id}`, {
+      const res = await fetch(`${process.env.PROXY_URL}/entry/${id}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
-      }).then((res) => res.json());
+      });
+
+      if (!res.ok) throw res;
+
+      const entry = await res.json();
+
+      if (entry.privacy) {
+        entry.description = stegcloak.hide(
+          entry.description,
+          process.env.STEGCLOAK_SECRET,
+          "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+        );
+      }
 
       return { props: { entry } };
     } catch (err) {

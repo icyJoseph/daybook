@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import auth0 from "utils/auth0";
 
-async function deleteEntry(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "DELETE") return res.status(401).json({ statusCode: 401 });
+async function check_update(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "GET") return res.status(401).json({ statusCode: 401 });
 
   try {
     const session = await auth0.getAccessToken(req, res);
@@ -13,16 +13,14 @@ async function deleteEntry(req: NextApiRequest, res: NextApiResponse) {
 
     if (!accessToken) return res.status(401).json({ statusCode: 401 });
 
-    const { id } = req.query;
+    const { query } = req;
 
-    if (!id) return res.status(500).json({ statusCode: 500 });
-
-    const data = await fetch(`${process.env.PROXY_URL}/delete/${id}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${accessToken}`
+    const data = await fetch(
+      `${process.env.PROXY_URL}/check_update?update_id=${query.update_id}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` }
       }
-    }).then((res) => res.json());
+    ).then((res) => res.json());
 
     return res.json(data);
   } catch (err) {
@@ -37,4 +35,4 @@ async function deleteEntry(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default auth0.withApiAuthRequired(deleteEntry);
+export default auth0.withApiAuthRequired(check_update);
