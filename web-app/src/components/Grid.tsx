@@ -6,7 +6,7 @@ export const Grid = styled.div`
   height: 100%;
   grid-template-columns: auto 1fr;
   grid-template-rows: 4rem 1fr;
-  row-gap: 2rem;
+  row-gap: 1rem;
   grid-template-areas:
     "g-menu g-header "
     "g-menu g-workspace ";
@@ -67,8 +67,7 @@ export const GridMain = styled.main<{ open: boolean }>`
     grid-area: g-main;
   }
 
-  > form,
-  ul {
+  > ul {
     max-width: 45ch;
     margin: 0 auto;
   }

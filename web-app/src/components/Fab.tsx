@@ -1,7 +1,7 @@
-import { Button, ThemeType } from "grommet";
+import { Button, ButtonExtendedProps, ThemeType } from "grommet";
 import styled from "styled-components";
 
-export const Fab = styled(Button)`
+export const Fab = styled(Button)<ButtonExtendedProps>`
   position: absolute;
   bottom: 2rem;
   right: 2rem;

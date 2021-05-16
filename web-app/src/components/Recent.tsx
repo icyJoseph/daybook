@@ -1,23 +1,31 @@
-import { Box, Heading } from "grommet";
+import styled from "styled-components";
+import { Box, BoxExtendedProps, Heading } from "grommet";
 
 import { EntryCard } from "components/EntryCard";
 import { useRecent } from "hooks/useRecent";
 
-export const Recent = () => {
-  const recent = useRecent();
+const StickyBox = styled(Box)<BoxExtendedProps>`
+  position: sticky;
+  top: 0;
+  padding: 1rem;
+  box-shadow: ${({ theme }) => theme.global?.elevation?.light?.small};
+`;
+
+export const Recent = ({ days = 7 }) => {
+  const recent = useRecent(days);
 
   const hits = recent.data?.hits ?? [];
 
   return (
     <>
-      <Box
+      <StickyBox
         background="white"
         style={{ padding: "8px", position: "sticky", top: 0 }}
       >
         <Heading as="h3" size="small" responsive>
           Recent
         </Heading>
-      </Box>
+      </StickyBox>
       <ul>
         {hits.map((entry) => (
           <EntryCard key={entry.id} {...entry} preview />
