@@ -288,7 +288,10 @@ async fn create<'a>(
                 description: info.description.clone(),
                 created_at,
                 organization: info.organization.clone(),
-                privacy: if info.privacy.is_none() { false } else { true },
+                privacy: match info.privacy {
+                    Some(p) => p,
+                    None => false,
+                },
                 links: vec![],
                 tags: vec![],
                 images: vec![],
