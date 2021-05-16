@@ -23,6 +23,7 @@ const Poll = ({ update }: { update: Update }) => {
       onSuccess: async (data) => {
         const { state } = data;
         switch (state) {
+          case "failed":
           case "done": {
             client.setQueryData<Update[]>("updates", (prev = []) =>
               prev.filter((val) => val.update_id !== update_id)

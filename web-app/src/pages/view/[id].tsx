@@ -1,25 +1,38 @@
 import { useEffect, useState } from "react";
 import { GetServerSidePropsContext } from "next";
 import Head from "next/head";
-import { Box, Button, Heading, Paragraph } from "grommet";
+import { Box, Heading, Paragraph } from "grommet";
 
 import { Entry } from "interfaces/entry";
 import { stegcloak } from "utils/cloak";
 import auth0 from "utils/auth0";
+import { Fab } from "components/Fab";
+import { Hide } from "grommet-icons";
 
 export default function ViewEntry({ entry }: { entry: Entry }) {
   const [cloak, setCloak] = useState(entry.privacy);
-  const [description, setDescription] = useState(entry.description);
+  const [revealed, setRevealed] = useState(entry.description);
 
   useEffect(() => {
-    if (entry.privacy && !cloak) {
-      fetch("/api/reveal", { method: "POST", body: entry.description })
+    if (entry.privacy) {
+      setCloak(true);
+      const controller = new AbortController();
+      fetch("/api/reveal", {
+        method: "POST",
+        body: entry.description,
+        signal: controller.signal
+      })
         .then((res) => res.json())
-        .then(({ revealed }) => setDescription(revealed));
-    } else if (entry.privacy) {
-      setDescription(entry.description);
+        .then(({ revealed }) => setRevealed(revealed));
+
+      return () => controller.abort();
+    } else {
+      setCloak(false);
+      setRevealed(entry.description);
     }
-  }, [cloak, entry.privacy, entry.description]);
+  }, [entry.privacy, entry.description]);
+
+  const description = cloak ? entry.description : revealed;
 
   return (
     <>
@@ -30,8 +43,9 @@ export default function ViewEntry({ entry }: { entry: Entry }) {
         <Heading margin={{ bottom: "12px" }}>{entry.title}</Heading>
         <Paragraph>{description}</Paragraph>
         {entry.privacy && (
-          <Button
-            label={cloak ? "Reveal" : "Hide"}
+          <Fab
+            hoverIndicator
+            icon={<Hide size="large" color={cloak ? "neutral-2" : "brand"} />}
             onClick={() => setCloak((x) => !x)}
           />
         )}
