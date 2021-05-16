@@ -34,7 +34,7 @@ export const GridWorkspace = styled.section`
 
 export const GridAside = styled.aside<{ open: boolean; theme: ThemeType }>`
   position: absolute;
-  overflow-y: auto;
+  overflow-y: scroll;
   transition: all 0.5s;
   grid-column: span 2;
   ${(props) => !props.open && asideAnim};
