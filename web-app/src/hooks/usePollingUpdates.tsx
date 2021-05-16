@@ -1,5 +1,6 @@
-import { Update } from "interfaces/update";
+import { Fragment } from "react";
 import { useQuery, useQueryClient } from "react-query";
+import { Update } from "interfaces/update";
 
 const useUpdates = () => {
   return useQuery<Update[]>("updates", () => {
@@ -41,8 +42,12 @@ const Poll = ({ update }: { update: Update }) => {
 
 export const PollingUpdates = () => {
   const updates = useUpdates();
-  console.log(updates);
-  return (updates.data ?? []).map((update) => (
-    <Poll key={update.update_id} update={update} />
-  ));
+
+  return (
+    <Fragment>
+      {(updates.data ?? []).map((update) => (
+        <Poll key={update.update_id} update={update} />
+      ))}
+    </Fragment>
+  );
 };
