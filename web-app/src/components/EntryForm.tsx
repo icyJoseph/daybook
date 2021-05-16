@@ -48,9 +48,17 @@ export function EntryForm({
         <Controller
           name="privacy"
           control={control}
-          render={({ field }: { field: ControllerRenderProps }) => (
-            <CheckBox checked={field.value} label="Private?" {...field} />
-          )}
+          render={({ field }: { field: ControllerRenderProps }) => {
+            const { value, onChange, ...rest } = field;
+            return (
+              <CheckBox
+                checked={value}
+                label="Private?"
+                {...rest}
+                onChange={(e) => onChange(e.target.checked)}
+              />
+            );
+          }}
         />
       </Box>
       {children}
