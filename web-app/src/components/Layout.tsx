@@ -1,49 +1,11 @@
 import { FC, useState, useEffect, Fragment } from "react";
-import styled from "styled-components";
-import Link from "next/link";
-import { Box, Header, Anchor, Nav, Heading, Text } from "grommet";
-import { Home, Add, Logout, Login } from "grommet-icons";
-import { UserProfile, useUser } from "@auth0/nextjs-auth0";
+import { Box, Text } from "grommet";
+import { useUser } from "@auth0/nextjs-auth0";
 
-import {
-  Grid,
-  GridHeader,
-  GridAside,
-  GridMain,
-  GridWorkspace
-} from "components/Grid";
+import { Grid, GridAside, GridMain, GridWorkspace } from "components/Grid";
 import { Recent } from "components/Recent";
 import { SideMenu } from "components/SideMenu";
 import { PollingUpdates } from "hooks/usePollingUpdates";
-
-export const TopBar: FC = () => {
-  const { user } = useUser();
-
-  return (
-    <Header background="brand" flex={{ grow: 0, shrink: 0 }} basis="4rem">
-      <Link href="/" passHref>
-        <Anchor margin="8px 12px">
-          <Heading level={1} color="accent-1" size="medium">
-            Daybook
-          </Heading>
-        </Anchor>
-      </Link>
-      <Box margin="0 auto" />
-      <Nav flex direction="row" justify="end" pad="xxsmall" margin="8px 12px">
-        <Link href="/" passHref>
-          <Anchor icon={<Home />} />
-        </Link>
-
-        <Link href="/create" passHref>
-          <Anchor icon={<Add />} />
-        </Link>
-        <Link href={`/api/auth/${user ? "logout" : "login"}`} passHref>
-          <Anchor icon={user ? <Logout /> : <Login />} />
-        </Link>
-      </Nav>
-    </Header>
-  );
-};
 
 const NoUser = () => (
   <Box gridArea="g-workspace" flex justify="center" align="center">
@@ -51,9 +13,29 @@ const NoUser = () => (
   </Box>
 );
 
-const WithUser: FC<{
-  picture: UserProfile["picture"];
-}> = ({ picture, children }) => {
+const Workspace: FC<{
+  days: number;
+  label: string;
+  docked: boolean;
+  close: () => void;
+  sideBarOpen: boolean;
+}> = ({ days, label, docked, close, sideBarOpen, children }) => {
+  return (
+    <Fragment>
+      <PollingUpdates />
+      <GridWorkspace>
+        <GridAside as="section" sideBarOpen={sideBarOpen}>
+          <Recent days={days} label={label} close={close} docked={docked} />
+        </GridAside>
+
+        <GridMain sideBarOpen={sideBarOpen}>{children}</GridMain>
+      </GridWorkspace>
+    </Fragment>
+  );
+};
+
+export const Application: FC<{}> = ({ children }) => {
+  const { user, error, isLoading } = useUser();
   const [open, setOpen] = useState(false);
   const [docked, setDocked] = useState(false);
 
@@ -71,43 +53,36 @@ const WithUser: FC<{
   }, [setDocked]);
 
   const shouldOpen = docked || open;
+  const picture = user?.picture;
+  const loggedIn = !isLoading && !!user && !error;
 
-  return (
-    <Fragment>
-      <PollingUpdates />
-      <SideMenu gridArea="g-menu" recentHandler={setOpen} avatarUrl={picture} />
-      <GridWorkspace>
-        <GridAside as="section" open={shouldOpen}>
-          <Recent />
-        </GridAside>
+  const [recentDays, setRecentDays] = useState({ days: 7, label: "week" });
 
-        <GridMain open={shouldOpen}>{children}</GridMain>
-      </GridWorkspace>
-    </Fragment>
-  );
-};
-
-export const Container = styled.section`
-  flex: 1 1 auto;
-  overflow-y: auto;
-`;
-
-export const Application: FC<{}> = ({ children }) => {
-  const { user, error, isLoading } = useUser();
+  const close = () => setOpen(false);
 
   if (isLoading) return null;
 
   return (
     <Grid>
-      <GridHeader>
-        <Heading level={2} size="medium" margin="8px">
-          Welcome{user ? `, ${user.name}` : ""}
-        </Heading>
-        {error && <span>{error.message}</span>}
-      </GridHeader>
+      <SideMenu
+        loggedIn={loggedIn}
+        gridArea="g-menu"
+        recentHandler={({ days, label }) => {
+          setOpen((x) => (x ? days !== recentDays.days : !x));
+          setRecentDays({ days, label });
+        }}
+        avatarUrl={picture}
+      />
 
       {user ? (
-        <WithUser picture={user?.picture}>{children}</WithUser>
+        <Workspace
+          sideBarOpen={shouldOpen}
+          {...recentDays}
+          close={close}
+          docked={docked}
+        >
+          {children}
+        </Workspace>
       ) : (
         <NoUser />
       )}

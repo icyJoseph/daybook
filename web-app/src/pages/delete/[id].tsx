@@ -34,7 +34,7 @@ export default function DeleteEntry({ entry }: { entry: Entry }) {
       <Head>
         <title>Delete</title>
       </Head>
-      <Box width={{ max: "45ch" }} margin="0 auto">
+      <Box width={{ max: "65ch" }} margin="0 auto" pad="small">
         <Box margin={{ vertical: "16px" }}>
           <Button
             primary
