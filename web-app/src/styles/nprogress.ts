@@ -6,7 +6,7 @@ export const npStyle = css<{ theme: ThemeType }>`
 
   #nprogress {
     --npcolor: ${({ theme }: { theme: ThemeType }) =>
-      theme.global?.colors?.["accent-1"] ?? "var(--npcolor)"};
+      theme.global?.colors?.["brand"] ?? "#E84855"};
     pointer-events: none;
   }
 

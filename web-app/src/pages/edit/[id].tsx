@@ -46,7 +46,7 @@ export default function EditEntry({ entry }: { entry: Entry }) {
       <Head>
         <title>Edit</title>
       </Head>
-      <Box as="header">
+      <Box as="header" pad="small">
         <Heading as="h2" margin="0 auto">
           Edit an entry
         </Heading>

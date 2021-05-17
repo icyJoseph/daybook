@@ -12,8 +12,7 @@ const SearchForm = styled(Form)`
   position: sticky;
   top: 0;
   padding: 1rem 2rem;
-  max-width: 45ch;
-  margin: 0 auto 2rem;
+
   background: white;
   box-shadow: ${({ theme }) => theme.global?.elevation?.light?.small};
 `;
@@ -69,7 +68,7 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
   return (
     <>
       <SearchForm onSubmit={onSubmit}>
-        <FormField>
+        <FormField contentProps={{ width: { max: "45ch" }, margin: "0 auto" }}>
           <TextInput
             placeholder="What are you looking for?"
             ref={inputRef}

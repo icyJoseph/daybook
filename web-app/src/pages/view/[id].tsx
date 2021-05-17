@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import { GetServerSidePropsContext } from "next";
+import { useRouter } from "next/router";
 import Head from "next/head";
 import { Box, Heading, Paragraph } from "grommet";
+import { Hide, Edit, Trash } from "grommet-icons";
 
 import { Entry } from "interfaces/entry";
 import { stegcloak } from "utils/cloak";
 import auth0 from "utils/auth0";
-import { Fab } from "components/Fab";
-import { Hide } from "grommet-icons";
+import { Fab, FabBtn } from "components/Fab";
 
 export default function ViewEntry({ entry }: { entry: Entry }) {
   const [cloak, setCloak] = useState(entry.privacy);
   const [revealed, setRevealed] = useState(entry.description);
+  const router = useRouter();
 
   useEffect(() => {
     if (entry.privacy) {
@@ -39,16 +41,29 @@ export default function ViewEntry({ entry }: { entry: Entry }) {
       <Head>
         <title>{entry.title}</title>
       </Head>
-      <Box width={{ max: "45ch" }} margin="0 auto">
+      <Box width={{ max: "45ch" }} margin="0 auto" pad="small">
         <Heading margin={{ bottom: "12px" }}>{entry.title}</Heading>
         <Paragraph>{description}</Paragraph>
-        {entry.privacy && (
-          <Fab
+        <Fab>
+          {entry.privacy && (
+            <FabBtn
+              hoverIndicator
+              icon={<Hide size="32px" color={cloak ? "neutral-2" : "brand"} />}
+              onClick={() => setCloak((x) => !x)}
+            />
+          )}
+
+          <FabBtn
             hoverIndicator
-            icon={<Hide size="large" color={cloak ? "neutral-2" : "brand"} />}
-            onClick={() => setCloak((x) => !x)}
+            icon={<Edit size="32px" color="neutral-3" />}
+            onClick={() => router.push(`/edit/${entry.id}`)}
           />
-        )}
+          <FabBtn
+            hoverIndicator
+            icon={<Trash size="32px" color="neutral-4" />}
+            onClick={() => router.push(`/delete/${entry.id}`)}
+          />
+        </Fab>
       </Box>
     </>
   );

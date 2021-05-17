@@ -2,20 +2,13 @@ import { ThemeType } from "grommet";
 import styled, { css } from "styled-components";
 
 export const Grid = styled.div`
+  flex: 1 1 auto;
+  overflow-y: auto;
+
   display: grid;
   height: 100%;
   grid-template-columns: auto 1fr;
-  grid-template-rows: 4rem 1fr;
-  row-gap: 1rem;
-  grid-template-areas:
-    "g-menu g-header "
-    "g-menu g-workspace ";
-`;
-
-export const GridHeader = styled.header`
-  grid-area: g-header;
-  display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-areas: "g-menu g-workspace ";
 `;
 
 const asideAnim = css`
@@ -32,12 +25,15 @@ export const GridWorkspace = styled.section`
   position: relative;
 `;
 
-export const GridAside = styled.aside<{ open: boolean; theme: ThemeType }>`
+export const GridAside = styled.aside<{
+  sideBarOpen: boolean;
+  theme: ThemeType;
+}>`
   position: absolute;
   overflow-y: scroll;
   transition: all 0.5s;
   grid-column: span 2;
-  ${(props) => !props.open && asideAnim};
+  ${(props) => !props.sideBarOpen && asideAnim};
   z-index: 10;
   height: 100%;
   width: 100%;
@@ -55,8 +51,7 @@ export const GridAside = styled.aside<{ open: boolean; theme: ThemeType }>`
   }
 `;
 
-export const GridMain = styled.main<{ open: boolean }>`
-  padding: 0 12px 12px;
+export const GridMain = styled.main<{ sideBarOpen: boolean }>`
   overflow-y: auto;
   grid-column: span 2;
   transition: all 0.5s;

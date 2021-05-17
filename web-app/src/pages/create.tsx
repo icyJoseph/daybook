@@ -43,7 +43,7 @@ export default function Create() {
       <Head>
         <title>Create</title>
       </Head>
-      <Box as="header">
+      <Box as="header" pad="small">
         <Heading as="h2" margin="0 auto">
           Create a new entry
         </Heading>

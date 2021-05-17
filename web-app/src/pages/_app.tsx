@@ -6,15 +6,14 @@ import nprogress from "nprogress";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { ReactQueryDevtools } from "react-query/devtools";
 
-import { TopBar, Container, Application } from "components/Layout";
+import { Application } from "components/Layout";
 
 import { useConstant } from "hooks/useConstant";
 import { theme } from "styles/theme";
 import { GlobalStyle } from "styles/global";
 
 nprogress.configure({
-  showSpinner: false,
-  parent: "#content"
+  showSpinner: false
 });
 
 Router.events.on("routeChangeStart", () => nprogress.start());
@@ -29,15 +28,12 @@ export default function App({ Component, pageProps }: AppProps) {
       <Grommet theme={theme}>
         <GlobalStyle />
         <UserProvider>
-          <TopBar />
-          <Container id="content">
-            <Application>
-              <Component {...pageProps} />
-            </Application>
-          </Container>
+          <Application>
+            <Component {...pageProps} />
+          </Application>
         </UserProvider>
       </Grommet>
-      <ReactQueryDevtools />
+      <ReactQueryDevtools position="top-right" />
     </QueryClientProvider>
   );
 }
