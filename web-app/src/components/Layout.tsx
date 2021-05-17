@@ -16,15 +16,16 @@ const NoUser = () => (
 const Workspace: FC<{
   days: number;
   label: string;
+  docked: boolean;
   close: () => void;
   sideBarOpen: boolean;
-}> = ({ days, label, close, sideBarOpen, children }) => {
+}> = ({ days, label, docked, close, sideBarOpen, children }) => {
   return (
     <Fragment>
       <PollingUpdates />
       <GridWorkspace>
         <GridAside as="section" sideBarOpen={sideBarOpen}>
-          <Recent days={days} label={label} close={close} />
+          <Recent days={days} label={label} close={close} docked={docked} />
         </GridAside>
 
         <GridMain sideBarOpen={sideBarOpen}>{children}</GridMain>
@@ -74,7 +75,12 @@ export const Application: FC<{}> = ({ children }) => {
       />
 
       {user ? (
-        <Workspace sideBarOpen={shouldOpen} {...recentDays} close={close}>
+        <Workspace
+          sideBarOpen={shouldOpen}
+          {...recentDays}
+          close={close}
+          docked={docked}
+        >
           {children}
         </Workspace>
       ) : (

@@ -12,7 +12,12 @@ const StickyBox = styled(Box)<BoxExtendedProps>`
   box-shadow: ${({ theme }) => theme.global?.elevation?.light?.small};
 `;
 
-export const Recent = ({ days = 7, label = "week", close = () => {} }) => {
+export const Recent = ({
+  days = 7,
+  label = "week",
+  docked = false,
+  close = () => {}
+}) => {
   const recent = useRecent(days);
 
   const hits = recent.data?.hits ?? [];
@@ -30,6 +35,7 @@ export const Recent = ({ days = 7, label = "week", close = () => {} }) => {
         </Heading>
 
         <Button
+          hidden={docked}
           icon={<Close />}
           onClick={(e) => {
             close();
