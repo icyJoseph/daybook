@@ -49,14 +49,14 @@ export const SideMenu = ({
         hidden={!loggedIn}
         icon={<Clock />}
         hoverIndicator
-        onClick={() => recentHandler({ days: 7, label: "Week" })}
+        onClick={() => recentHandler({ days: 7, label: "week" })}
       />
 
       <Button
         hidden={!loggedIn}
         icon={<Calendar />}
         hoverIndicator
-        onClick={() => recentHandler({ days: 31, label: "Month" })}
+        onClick={() => recentHandler({ days: 31, label: "month" })}
       />
 
       {/* <Button

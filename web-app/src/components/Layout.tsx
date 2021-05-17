@@ -15,14 +15,16 @@ const NoUser = () => (
 
 const Workspace: FC<{
   days: number;
+  label: string;
+  close: () => void;
   sideBarOpen: boolean;
-}> = ({ days, sideBarOpen, children }) => {
+}> = ({ days, label, close, sideBarOpen, children }) => {
   return (
     <Fragment>
       <PollingUpdates />
       <GridWorkspace>
         <GridAside as="section" sideBarOpen={sideBarOpen}>
-          <Recent days={days} />
+          <Recent days={days} label={label} close={close} />
         </GridAside>
 
         <GridMain sideBarOpen={sideBarOpen}>{children}</GridMain>
@@ -53,7 +55,9 @@ export const Application: FC<{}> = ({ children }) => {
   const picture = user?.picture;
   const loggedIn = !isLoading && !!user && !error;
 
-  const [recentDays, setRecentDays] = useState(7);
+  const [recentDays, setRecentDays] = useState({ days: 7, label: "week" });
+
+  const close = () => setOpen(false);
 
   if (isLoading) return null;
 
@@ -62,15 +66,15 @@ export const Application: FC<{}> = ({ children }) => {
       <SideMenu
         loggedIn={loggedIn}
         gridArea="g-menu"
-        recentHandler={({ days }) => {
-          setOpen((x) => !x);
-          setRecentDays(days);
+        recentHandler={({ days, label }) => {
+          setOpen((x) => (x ? days !== recentDays.days : !x));
+          setRecentDays({ days, label });
         }}
         avatarUrl={picture}
       />
 
       {user ? (
-        <Workspace sideBarOpen={shouldOpen} days={recentDays}>
+        <Workspace sideBarOpen={shouldOpen} {...recentDays} close={close}>
           {children}
         </Workspace>
       ) : (
