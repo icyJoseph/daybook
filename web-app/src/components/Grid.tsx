@@ -19,7 +19,7 @@ export const GridWorkspace = styled.section`
   grid-area: g-workspace;
   display: grid;
   grid-template-areas: "g-side g-main";
-  grid-template-columns: minmax(250px, 1fr) 4fr;
+  grid-template-columns: minmax(300px, 1fr) 4fr;
   overflow-x: hidden;
   overflow-y: hidden;
   position: relative;

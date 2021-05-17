@@ -8,7 +8,7 @@ import { Close } from "grommet-icons";
 const StickyBox = styled(Box)<BoxExtendedProps>`
   position: sticky;
   top: 0;
-  padding: 1rem;
+  padding: 0.5rem;
   box-shadow: ${({ theme }) => theme.global?.elevation?.light?.small};
 `;
 
