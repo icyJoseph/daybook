@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { GetServerSidePropsContext } from "next";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { Box, Heading, Paragraph } from "grommet";
+import { Box, Heading } from "grommet";
 import { Hide, Edit, Trash } from "grommet-icons";
 
 import { Entry } from "interfaces/entry";
 import { stegcloak } from "utils/cloak";
 import auth0 from "utils/auth0";
 import { Fab, FabBtn } from "components/Fab";
+import { Markdown } from "components/Markdown";
 
 export default function ViewEntry({ entry }: { entry: Entry }) {
   const [cloak, setCloak] = useState(entry.privacy);
@@ -41,9 +42,9 @@ export default function ViewEntry({ entry }: { entry: Entry }) {
       <Head>
         <title>{entry.title}</title>
       </Head>
-      <Box width={{ max: "45ch" }} margin="0 auto" pad="small">
+      <Box width={{ max: "65ch" }} margin="0 auto" pad="small">
         <Heading margin={{ bottom: "12px" }}>{entry.title}</Heading>
-        <Paragraph>{description}</Paragraph>
+        <Markdown>{description}</Markdown>
         <Fab>
           {entry.privacy && (
             <FabBtn

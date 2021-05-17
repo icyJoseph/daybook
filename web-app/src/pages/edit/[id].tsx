@@ -37,6 +37,7 @@ export default function EditEntry({ entry }: { entry: Entry }) {
         updateInfo
       ]);
 
+      // router.push(`/view/${entry.id}`);
       router.push("/");
     }
   };
@@ -51,7 +52,7 @@ export default function EditEntry({ entry }: { entry: Entry }) {
           Edit an entry
         </Heading>
       </Box>
-      <Box as="main" width={{ max: "45ch" }} margin="12px auto">
+      <Box as="main" width={{ max: "65ch" }} margin="12px auto">
         <EntryForm onSubmit={onSubmit} initialValues={{ ...entry }}>
           <Button type="submit" primary label="Save" />
         </EntryForm>
