@@ -479,41 +479,31 @@ async fn check_update<'a>(
     let c_client = &state.client;
     let arc_client = &c_client.clone();
     let client = arc_client.lock().unwrap();
+    let update_id = info.update_id;
 
     match client.get_index(index_name).await {
-        Ok(index) => match index.get_all_updates().await {
-            Ok(all_updates) => {
-                let update_id = info.update_id;
-
-                let status = all_updates.iter().find(|obj| match obj {
-                    UpdateStatus::Enqueued { content } => content.update_id == update_id,
-                    UpdateStatus::Failed { content } => content.update_id == update_id,
-                    UpdateStatus::Processed { content } => content.update_id == update_id,
-                });
-
+        Ok(index) => match index.get_update(update_id).await {
+            Ok(status) => {
                 let response = match status {
-                    Some(UpdateStatus::Enqueued { content }) => StatusResponse {
+                    UpdateStatus::Enqueued { content } => StatusResponse {
                         update_id: content.update_id,
                         state: format!("processing"),
                     },
-                    Some(UpdateStatus::Failed { content }) => StatusResponse {
+                    UpdateStatus::Failed { content } => StatusResponse {
                         update_id: content.update_id,
                         state: format!("failed"),
                     },
-                    Some(UpdateStatus::Processed { content }) => StatusResponse {
+                    UpdateStatus::Processed { content } => StatusResponse {
                         update_id: content.update_id,
                         state: format!("done"),
-                    },
-                    _ => StatusResponse {
-                        update_id,
-                        state: format!("not found"),
                     },
                 };
 
                 Ok(HttpResponse::Ok().json(response))
             }
-            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                reason: format!("Update `{}` not found", info.update_id),
+            Err(_) => Ok(HttpResponse::Ok().json(StatusResponse {
+                update_id,
+                state: format!("not found"),
             })),
         },
         Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
