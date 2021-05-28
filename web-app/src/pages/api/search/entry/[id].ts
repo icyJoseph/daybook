@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import auth0 from "utils/auth0";
+import { stegcloak } from "utils/cloak";
 
 async function by_id(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(401).json({ statusCode: 401 });
@@ -15,9 +16,17 @@ async function by_id(req: NextApiRequest, res: NextApiResponse) {
 
     const { id } = req.query;
 
-    const data = await fetch(`${process.env.PROXY_URL}/entry/${id}`).then(
-      (res) => res.json()
-    );
+    const data = await fetch(`${process.env.PROXY_URL}/entry/${id}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    }).then((res) => res.json());
+
+    if (data.privacy) {
+      data.description = stegcloak.hide(
+        data.description,
+        process.env.STEGCLOAK_SECRET,
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+      );
+    }
 
     return res.json(data);
   } catch (err) {
@@ -27,6 +36,7 @@ async function by_id(req: NextApiRequest, res: NextApiResponse) {
         res.redirect("/api/auth/logout");
       }
     } else {
+      console.log(err);
       return res.status(500).json({ statusCode: 500 });
     }
   }

@@ -6,7 +6,7 @@ import { Box, Button, Heading } from "grommet";
 
 import { EntryForm } from "components/EntryForm";
 import auth0 from "utils/auth0";
-import { Update } from "interfaces/update";
+import { isUpdate, PollingUpdate } from "hooks/usePollingUpdates";
 
 export default function Create() {
   const router = useRouter();
@@ -19,7 +19,7 @@ export default function Create() {
     const privacy = data?.["privacy"] ?? false;
 
     if (title && description) {
-      const updateInfo: Update = await fetch("/api/search/create", {
+      const updateInfo: PollingUpdate = await fetch("/api/search/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -29,10 +29,12 @@ export default function Create() {
 
       // add updateInfo to total update query
 
-      queryClient.setQueryData<Update[]>("updates", (prev = []) => [
-        ...prev,
-        updateInfo
-      ]);
+      if (isUpdate(updateInfo)) {
+        queryClient.setQueryData<PollingUpdate[]>("updates", (prev = []) => [
+          ...prev,
+          { ...updateInfo, key: "recent" }
+        ]);
+      }
 
       router.push("/");
     }
