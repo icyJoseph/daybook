@@ -9,26 +9,30 @@ import { Trash } from "grommet-icons";
 
 import { Entry } from "interfaces/entry";
 import auth0 from "utils/auth0";
-import { Update } from "interfaces/update";
+import { isUpdate, PollingUpdate } from "hooks/usePollingUpdates";
 
 export default function DeleteEntry({ entry }: { entry: Entry }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const deleteHandler: MouseEventHandler<HTMLButtonElement> = async () => {
     const proceed = window.confirm(`Delete: ${entry.title}?`);
+
     if (proceed) {
       const updateInfo = await fetch(`/api/search/delete/${entry.id}`, {
         method: "DELETE"
       }).then((res) => res.json());
 
-      queryClient.setQueryData<Update[]>("updates", (prev = []) => [
-        ...prev,
-        updateInfo
-      ]);
+      if (isUpdate(updateInfo)) {
+        queryClient.setQueryData<PollingUpdate[]>("updates", (prev = []) => [
+          ...prev,
+          { ...updateInfo, key: "recent" }
+        ]);
+      }
 
       router.replace("/");
     }
   };
+
   return (
     <>
       <Head>

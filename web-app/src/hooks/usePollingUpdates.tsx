@@ -1,6 +1,10 @@
 import { Fragment } from "react";
-import { useQuery, useQueryClient } from "react-query";
+import { useQuery, useQueryClient, QueryKey } from "react-query";
 import { Update } from "interfaces/update";
+
+type Invalidate = {
+  key?: QueryKey;
+};
 
 const useUpdates = () => {
   return useQuery<Update[]>("updates", () => {
@@ -8,28 +12,37 @@ const useUpdates = () => {
   });
 };
 
-const Poll = ({ update }: { update: Update }) => {
+export type PollingUpdate = Update & Invalidate;
+
+export const isUpdate = (obj: any): obj is Update => {
+  return "state" in obj && "update_id" in obj;
+};
+
+const Poll = ({ update }: { update: PollingUpdate }) => {
   const client = useQueryClient();
   const { update_id } = update;
 
-  useQuery<Update>(
+  useQuery<PollingUpdate>(
     ["update", update_id],
     () =>
       fetch(`/api/search/check_update?update_id=${update_id}`).then((res) =>
         res.json()
       ),
     {
-      staleTime: 250,
+      refetchInterval: 250,
       onSuccess: async (data) => {
         const { state } = data;
         switch (state) {
           case "failed":
           case "done": {
-            client.setQueryData<Update[]>("updates", (prev = []) =>
+            client.setQueryData<PollingUpdate[]>("updates", (prev = []) =>
               prev.filter((val) => val.update_id !== update_id)
             );
 
-            return await client.invalidateQueries("recent");
+            if (update.key) {
+              return await client.invalidateQueries(update.key);
+            }
+            return;
           }
           default:
             return;
