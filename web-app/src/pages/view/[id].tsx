@@ -33,6 +33,10 @@ export default function ViewEntry({ initialData }: { initialData: Entry }) {
   const [revealed, setRevealed] = useState(null);
   const controlRef = useRef<AbortController | null>(null);
 
+  useEffect(() => {
+    setRevealed(null);
+  }, [initialData.id, setRevealed]);
+
   const reveal = async () => {
     if (exists(revealed)) return setRevealed(null);
 
