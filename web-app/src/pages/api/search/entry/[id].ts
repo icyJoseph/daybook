@@ -36,7 +36,6 @@ async function by_id(req: NextApiRequest, res: NextApiResponse) {
         res.redirect("/api/auth/logout");
       }
     } else {
-      console.log(err);
       return res.status(500).json({ statusCode: 500 });
     }
   }

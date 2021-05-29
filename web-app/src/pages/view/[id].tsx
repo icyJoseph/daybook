@@ -18,7 +18,7 @@ const exists = <T,>(val: T | null | undefined): val is T =>
 export default function ViewEntry({ initialData }: { initialData: Entry }) {
   const router = useRouter();
 
-  const { data, ...rest } = useQuery<Entry>(
+  const { data } = useQuery<Entry>(
     ["entry", initialData.id],
     () =>
       fetch(`/api/search/entry/${initialData.id}`).then((res) => res.json()),
@@ -33,7 +33,6 @@ export default function ViewEntry({ initialData }: { initialData: Entry }) {
   const [revealed, setRevealed] = useState(null);
   const controlRef = useRef<AbortController | null>(null);
 
-  console.log(rest);
   const reveal = async () => {
     if (exists(revealed)) return setRevealed(null);
 
