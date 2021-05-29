@@ -22,7 +22,7 @@ const Poll = ({ update }: { update: PollingUpdate }) => {
   const client = useQueryClient();
   const { update_id } = update;
 
-  const ret = useQuery<PollingUpdate>(
+  useQuery<PollingUpdate>(
     ["update", update_id],
     () =>
       fetch(`/api/search/check_update?update_id=${update_id}`).then((res) =>
@@ -50,8 +50,6 @@ const Poll = ({ update }: { update: PollingUpdate }) => {
       }
     }
   );
-
-  console.log(ret);
 
   return null;
 };
