@@ -32,18 +32,28 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
   });
 
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (q) {
-      fetch(`/api/search/query?q=${q}`)
+      const urlQuery = Array.isArray(q) ? q.join(" ") : q;
+
+      if (inputRef.current) {
+        inputRef.current.value = urlQuery;
+      }
+
+      const controller = new AbortController();
+      const signal = controller.signal;
+      
+      fetch(`/api/search/query?q=${urlQuery}`, { signal })
         .then((res) => res.json())
         .then((data) => setResults(data));
+
+      return () => controller.abort();
     } else {
       setResults({ ...defaultResult });
     }
   }, [q]);
-
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
