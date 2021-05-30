@@ -8,7 +8,7 @@ import { Box, Heading, Button } from "grommet";
 import { EntryForm } from "components/EntryForm";
 import { Entry } from "interfaces/entry";
 import auth0 from "utils/auth0";
-import { Update } from "interfaces/update";
+import { isUpdate, PollingUpdate } from "hooks/usePollingUpdates";
 
 export default function EditEntry({ entry }: { entry: Entry }) {
   const router = useRouter();
@@ -32,13 +32,14 @@ export default function EditEntry({ entry }: { entry: Entry }) {
         })
       }).then((res) => res.json());
 
-      queryClient.setQueryData<Update[]>("updates", (prev = []) => [
-        ...prev,
-        updateInfo
-      ]);
+      if (isUpdate(updateInfo)) {
+        queryClient.setQueryData<PollingUpdate[]>("updates", (prev = []) => [
+          ...prev,
+          { ...updateInfo, key: ["entry", entry.id] }
+        ]);
+      }
 
-      // router.push(`/view/${entry.id}`);
-      router.push("/");
+      router.push(`/view/${entry.id}`);
     }
   };
 

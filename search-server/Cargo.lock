@@ -1225,9 +1225,9 @@ checksum = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
 
 [[package]]
 name = "meilisearch-sdk"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a35afb8ba2129a387090b4727aa95a5071479e4f58a53c6aa664e4326b8d7ca1"
+checksum = "345a96115527c2bf0a109c4dbd2be07793cd2f05e5dacd89895290aa70c6db6e"
 dependencies = [
  "futures",
  "isahc",

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GetServerSidePropsContext } from "next";
 import { useRouter } from "next/router";
 import Head from "next/head";
+import { useQuery } from "react-query";
 import { Box, Heading } from "grommet";
 import { Hide, Edit, Trash } from "grommet-icons";
 
@@ -11,31 +12,60 @@ import auth0 from "utils/auth0";
 import { Fab, FabBtn } from "components/Fab";
 import { Markdown } from "components/Markdown";
 
-export default function ViewEntry({ entry }: { entry: Entry }) {
-  const [cloak, setCloak] = useState(entry.privacy);
-  const [revealed, setRevealed] = useState(entry.description);
+const exists = <T,>(val: T | null | undefined): val is T =>
+  val === (val ?? !val);
+
+export default function ViewEntry({ initialData }: { initialData: Entry }) {
   const router = useRouter();
 
+  const { data } = useQuery<Entry>(
+    ["entry", initialData.id],
+    () =>
+      fetch(`/api/search/entry/${initialData.id}`).then((res) => res.json()),
+    {
+      initialData,
+      staleTime: Infinity
+    }
+  );
+
+  const entry = data ?? initialData;
+
+  const [revealed, setRevealed] = useState(null);
+  const controlRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
+    setRevealed(null);
+  }, [initialData.id, setRevealed]);
+
+  const reveal = async () => {
+    if (exists(revealed)) return setRevealed(null);
+
     if (entry.privacy) {
-      setCloak(true);
       const controller = new AbortController();
+
       fetch("/api/reveal", {
         method: "POST",
         body: entry.description,
         signal: controller.signal
       })
         .then((res) => res.json())
-        .then(({ revealed }) => setRevealed(revealed));
+        .then(({ revealed }) => setRevealed(revealed))
+        .then(() => (controlRef.current = null));
 
-      return () => controller.abort();
-    } else {
-      setCloak(false);
-      setRevealed(entry.description);
+      controlRef.current = controller;
     }
-  }, [entry.privacy, entry.description]);
+  };
 
-  const description = cloak ? entry.description : revealed;
+  useEffect(() => {
+    return () => {
+      if (controlRef.current) {
+        controlRef.current.abort();
+      }
+    };
+  });
+
+  const description = revealed ?? entry.description;
+  const cloak = entry.privacy && !exists(revealed);
 
   return (
     <>
@@ -50,7 +80,7 @@ export default function ViewEntry({ entry }: { entry: Entry }) {
             <FabBtn
               hoverIndicator
               icon={<Hide size="32px" color={cloak ? "neutral-2" : "brand"} />}
-              onClick={() => setCloak((x) => !x)}
+              onClick={reveal}
             />
           )}
 
@@ -88,17 +118,17 @@ export const getServerSideProps = auth0.withPageAuthRequired({
 
       if (!res.ok) throw res;
 
-      const entry = await res.json();
+      const initialData = await res.json();
 
-      if (entry.privacy) {
-        entry.description = stegcloak.hide(
-          entry.description,
+      if (initialData.privacy) {
+        initialData.description = stegcloak.hide(
+          initialData.description,
           process.env.STEGCLOAK_SECRET,
           "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
         );
       }
 
-      return { props: { entry } };
+      return { props: { initialData } };
     } catch (err) {
       return { notFound: true };
     }
