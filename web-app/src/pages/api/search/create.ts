@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import auth0 from "utils/auth0";
+import { AccessTokenError } from "@auth0/nextjs-auth0/dist/utils/errors";
 
 async function bulk(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(401).json({ statusCode: 401 });
@@ -28,7 +29,7 @@ async function bulk(req: NextApiRequest, res: NextApiResponse) {
 
     return res.json(data);
   } catch (err) {
-    if ("code" in err) {
+    if (err instanceof AccessTokenError) {
       if (err.code === "access_token_expired") {
         res.statusCode = 301;
         res.redirect("/api/auth/logout");

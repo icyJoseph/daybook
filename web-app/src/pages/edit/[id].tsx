@@ -48,12 +48,20 @@ export default function EditEntry({ entry }: { entry: Entry }) {
       <Head>
         <title>Edit</title>
       </Head>
+
       <Box as="header" pad="small">
         <Heading as="h2" margin="0 auto">
           Edit an entry
         </Heading>
       </Box>
-      <Box as="main" width={{ max: "65ch" }} margin="12px auto">
+
+      <Box
+        responsive
+        as="main"
+        width={{ max: "65ch" }}
+        margin="12px auto"
+        pad="medium"
+      >
         <EntryForm onSubmit={onSubmit} initialValues={{ ...entry }}>
           <Button type="submit" primary label="Save" />
         </EntryForm>
