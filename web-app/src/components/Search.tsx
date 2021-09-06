@@ -7,6 +7,7 @@ import { Button, Box, Text, TextInput, Form, FormField } from "grommet";
 import { Entry } from "interfaces/entry";
 import { EntryCard } from "components/EntryCard";
 import { Result } from "interfaces/result";
+import { useStats } from "hooks/useStats";
 
 const SearchForm = styled(Form)`
   position: sticky;
@@ -17,14 +18,14 @@ const SearchForm = styled(Form)`
   box-shadow: ${({ theme }) => theme.global?.elevation?.light?.small};
 `;
 
-const defaultResult: Result<Entry> = {
+const defaultResult: Result<Entry> = Object.freeze({
   hits: [],
-  processing_time_ms: 0,
+  processing_time_ms: null,
   offset: 0,
   limit: 0,
   nb_hits: 0,
   exhaustive_nb_hits: false
-};
+});
 
 export const Search = ({ q = "" }: { q?: string | string[] }) => {
   const [{ hits, processing_time_ms: searchTime }, setResults] = useState({
@@ -33,6 +34,8 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
 
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const { data } = useStats();
 
   useEffect(() => {
     if (q) {
@@ -44,10 +47,18 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
 
       const controller = new AbortController();
       const signal = controller.signal;
-      
+
       fetch(`/api/search/query?q=${urlQuery}`, { signal })
-        .then((res) => res.json())
-        .then((data) => setResults(data));
+        .then(async (res) => {
+          const data = await res.json();
+          if (res.status === 200) {
+            return data;
+          } else {
+            throw data;
+          }
+        })
+        .then((data) => setResults(data))
+        .catch(() => setResults({ ...defaultResult }));
 
       return () => controller.abort();
     } else {
@@ -61,12 +72,15 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
     if (query) {
       router.push({ pathname: "/", query: { q: query } });
       try {
-        const data = await fetch(`/api/search/query?q=${query}`).then((res) =>
-          res.json()
-        );
+        const res = await fetch(`/api/search/query?q=${query}`);
+        const data = await res.json();
+
+        if (res.status !== 200) {
+          throw data;
+        }
 
         setResults(data);
-      } catch (e) {
+      } catch (err) {
         setResults({ ...defaultResult });
       }
     } else {
@@ -79,15 +93,25 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
     <>
       <SearchForm onSubmit={onSubmit}>
         <FormField contentProps={{ width: { max: "45ch" }, margin: "0 auto" }}>
-          <TextInput
-            placeholder="What are you looking for?"
-            ref={inputRef}
-          ></TextInput>
+          <TextInput placeholder="What are you looking for?" ref={inputRef} />
         </FormField>
+
         <Box align="center" gap="medium">
           <Button type="submit" primary label="Search" />
-          {searchTime === null ? null : (
-            <Text color="dark-3">Search time: {searchTime} ms</Text>
+
+          {data && (
+            <Text color="dark-3" size="small">
+              {searchTime === null
+                ? "Ready to search across "
+                : "Searched through "}
+              {data?.number_of_documents} documents
+            </Text>
+          )}
+
+          {searchTime !== null && (
+            <Text color="dark-3" size="small">
+              Search time: {searchTime} ms - {hits.length} results
+            </Text>
           )}
         </Box>
       </SearchForm>

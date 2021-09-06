@@ -6,6 +6,7 @@ import { Grid, GridAside, GridMain, GridWorkspace } from "components/Grid";
 import { Recent } from "components/Recent";
 import { SideMenu } from "components/SideMenu";
 import { PollingUpdates } from "hooks/usePollingUpdates";
+import { useStats } from "hooks/useStats";
 
 const NoUser = () => (
   <Box gridArea="g-workspace" flex justify="center" align="center">
@@ -38,6 +39,10 @@ export const Application: FC<{}> = ({ children }) => {
   const { user, error, isLoading } = useUser();
   const [open, setOpen] = useState(false);
   const [docked, setDocked] = useState(false);
+
+  // this seeds any other query made for stats, for example
+  // the query done in Search
+  useStats(!!user);
 
   useEffect(() => {
     const query = window.matchMedia("(min-width: 630px)");
