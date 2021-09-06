@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import auth0 from "utils/auth0";
 import { AccessTokenError } from "@auth0/nextjs-auth0/dist/utils/errors";
+
+import auth0 from "utils/auth0";
 
 async function bulk(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(401).json({ statusCode: 401 });
