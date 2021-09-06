@@ -60,12 +60,18 @@ struct HealthResponse {
     meilie_health: bool,
 }
 
+#[derive(Serialize)]
+struct Stats {
+    number_of_documents: usize,
+    is_indexing: bool,
+}
+
 struct AppState<'a> {
     client: Arc<Mutex<Client<'a>>>,
     index_name: &'a str,
 }
 
-#[cached(size = 1, time = 120)]
+#[cached(size = 1, time = 180)]
 async fn verify_token(token: String) -> bool {
     let web_client = actix_web::client::Client::default();
 
@@ -559,6 +565,36 @@ async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[get("/stats")]
+async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+    let c_client = &state.client;
+
+    let index_name = &state.index_name;
+
+    let arc_client = &c_client.clone();
+    let client = arc_client.lock().unwrap();
+
+    match client.get_index(index_name).await {
+        Ok(index) => match index.get_stats().await {
+            Ok(meili_stats) => {
+                let stats = Stats {
+                    number_of_documents: meili_stats.number_of_documents,
+                    is_indexing: meili_stats.is_indexing,
+                };
+
+                Ok(HttpResponse::Ok().json(stats))
+            }
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("No stats for client"),
+            })),
+        },
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
+}
+
 #[actix_web::main]
 async fn main() -> Result<()> {
     // Sets up master key on MeiliSearch and Authentication endpoints
@@ -611,6 +647,7 @@ async fn main() -> Result<()> {
                     .wrap(HttpAuthentication::bearer(validator))
                     .wrap(Cors::permissive())
                     .app_data(state.clone())
+                    .service(stats)
                     .service(health)
                     .service(get_by_id)
                     .service(bulk)

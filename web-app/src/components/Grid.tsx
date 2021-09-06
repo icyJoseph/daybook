@@ -64,6 +64,6 @@ export const GridMain = styled.main<{ sideBarOpen: boolean }>`
 
   > ul {
     max-width: 45ch;
-    margin: 0 auto;
+    margin: 16px auto;
   }
 `;
