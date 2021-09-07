@@ -25,6 +25,7 @@ async function bulk(req: NextApiRequest, res: NextApiResponse) {
       if (err.code === "access_token_expired") {
         res.statusCode = 301;
         res.redirect("/api/auth/logout");
+        return;
       }
     } else {
       return res.status(500).json({ statusCode: 500 });

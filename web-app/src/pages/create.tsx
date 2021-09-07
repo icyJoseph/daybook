@@ -1,6 +1,6 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { FieldValues } from "react-hook-form";
+import type { FieldValues } from "react-hook-form";
 import { useQueryClient } from "react-query";
 import { Box, Button, Heading } from "grommet";
 
