@@ -12,7 +12,6 @@ use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthent
 use cached::proc_macro::cached;
 use dotenv;
 use entry::Entry;
-use env_logger::Env;
 use helpers::*;
 use meilisearch_sdk::{client::*, progress::*, search::*};
 use mutation::*;
@@ -597,6 +596,8 @@ async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
 
 #[actix_web::main]
 async fn main() -> Result<()> {
+    std::env::set_var("RUST_LOG", "info");
+    std::env::set_var("RUST_BACKTRACE", "1");
     // Sets up master key on MeiliSearch and Authentication endpoints
     dotenv::dotenv().ok();
 
@@ -639,7 +640,7 @@ async fn main() -> Result<()> {
                 index_name: boxed_index_name,
             });
 
-            env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+            env_logger::init();
 
             HttpServer::new(move || {
                 App::new()
