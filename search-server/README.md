@@ -25,9 +25,9 @@ Description=Daybook
 After=network.target
 
 [Service]
-EnvironmentFile=/home/joseph/prod/.env
+EnvironmentFile= <Path to env file>
 Type=simple
-ExecStart=/home/joseph/prod/search-server
+ExecStart= <Path to executable>
 
 [Install]
 WantedBy=multi-user.target
