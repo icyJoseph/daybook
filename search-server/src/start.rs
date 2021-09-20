@@ -4,9 +4,9 @@ use std::process::Command;
 use std::{thread, time};
 
 /// Start MeilieSearch instance. Kills the instance if the parent process is shutdown using Ctrl-C
-pub async fn start_meilisearch() -> std::io::Result<()> {
+pub async fn start_meilisearch(path: &str) -> std::io::Result<()> {
     // Start a MeiliSearch instance
-    let mut child = Command::new("./meilisearch").spawn()?;
+    let mut child = Command::new(path).spawn()?;
 
     // If the server is shutdown, kill the MeiliSearch instance
     ctrlc::set_handler(move || match child.kill() {
