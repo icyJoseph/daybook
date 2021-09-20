@@ -85,8 +85,13 @@ async fn verify_token(token: String) -> bool {
                 .send()
                 .await;
 
-            let status = res.unwrap().status();
-            status == 200
+            match res {
+                Ok(response) => response.status() == 200,
+                Err(_) => {
+                    println!("Failed to react: {}", key);
+                    return false;
+                }
+            }
         }
         Err(_) => false,
     }
@@ -117,40 +122,19 @@ async fn later_than<'a>(
 
     let c_client = &state.client;
     let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+    let locked = arc_client.lock();
 
-    match client.get_index(index_name).await {
-        Ok(index) => {
-            let filter = format!("created_at >= {}", info.created_at);
+    if let Ok(client) = locked {
+        match client.get_index(index_name).await {
+            Ok(index) => {
+                let filter = format!("created_at >= {}", info.created_at);
 
-            let mut response = match (info.offset, info.limit) {
-                (Some(offset), Some(limit)) => index
-                    .search()
-                    .with_offset(offset)
-                    .with_limit(limit)
-                    .with_filters(&filter)
-                    .execute()
-                    .await
-                    .unwrap_or(SearchResults::<Entry> {
-                        hits: vec![],
-                        offset: 0,
-                        limit: 20,
-                        nb_hits: 0,
-                        exhaustive_nb_hits: false,
-                        facets_distribution: None,
-                        exhaustive_facets_count: None,
-                        processing_time_ms: 0,
-                        query: "".to_string(),
-                    }),
-                _ => {
-                    let mut offset = 0;
-                    let mut limit = 100;
-
-                    let mut results: SearchResults<Entry> = index
+                let mut response = match (info.offset, info.limit) {
+                    (Some(offset), Some(limit)) => index
                         .search()
-                        .with_filters(&filter)
                         .with_offset(offset)
                         .with_limit(limit)
+                        .with_filters(&filter)
                         .execute()
                         .await
                         .unwrap_or(SearchResults::<Entry> {
@@ -163,13 +147,12 @@ async fn later_than<'a>(
                             exhaustive_facets_count: None,
                             processing_time_ms: 0,
                             query: "".to_string(),
-                        });
+                        }),
+                    _ => {
+                        let mut offset = 0;
+                        let mut limit = 100;
 
-                    loop {
-                        offset = limit;
-                        limit += 100;
-
-                        let next: SearchResults<Entry> = index
+                        let mut results: SearchResults<Entry> = index
                             .search()
                             .with_filters(&filter)
                             .with_offset(offset)
@@ -188,31 +171,59 @@ async fn later_than<'a>(
                                 query: "".to_string(),
                             });
 
-                        if next.hits.len() == 0 {
-                            break;
+                        loop {
+                            offset = limit;
+                            limit += 100;
+
+                            let next: SearchResults<Entry> = index
+                                .search()
+                                .with_filters(&filter)
+                                .with_offset(offset)
+                                .with_limit(limit)
+                                .execute()
+                                .await
+                                .unwrap_or(SearchResults::<Entry> {
+                                    hits: vec![],
+                                    offset: 0,
+                                    limit: 20,
+                                    nb_hits: 0,
+                                    exhaustive_nb_hits: false,
+                                    facets_distribution: None,
+                                    exhaustive_facets_count: None,
+                                    processing_time_ms: 0,
+                                    query: "".to_string(),
+                                });
+
+                            if next.hits.len() == 0 {
+                                break;
+                            }
+
+                            for hit in next.hits {
+                                results.hits.push(hit);
+                            }
+
+                            results.processing_time_ms += next.processing_time_ms;
                         }
 
-                        for hit in next.hits {
-                            results.hits.push(hit);
-                        }
-
-                        results.processing_time_ms += next.processing_time_ms;
+                        results
                     }
+                };
 
-                    results
-                }
-            };
+                response
+                    .hits
+                    .sort_by(|a, b| a.result.created_at.cmp(&b.result.created_at).reverse());
 
-            response
-                .hits
-                .sort_by(|a, b| a.result.created_at.cmp(&b.result.created_at).reverse());
+                Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
+            }
 
-            Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("No client"),
+            })),
         }
-
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        })),
+        }))
     }
 }
 
@@ -227,19 +238,25 @@ async fn bulk<'a>(
 
     let c_client = &state.client;
     let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+    let locked = arc_client.lock();
 
-    match client.get_index(index_name).await {
-        Ok(index) => match index.get_documents::<Entry>(None, info.qty, None).await {
-            Ok(all) => Ok(HttpResponse::Ok().json(all)),
-            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                reason: format!("No documents found"),
+    if let Ok(client) = locked {
+        match client.get_index(index_name).await {
+            Ok(index) => match index.get_documents::<Entry>(None, info.qty, None).await {
+                Ok(all) => Ok(HttpResponse::Ok().json(all)),
+                Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                    reason: format!("No documents found"),
+                })),
+            },
+
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("No client"),
             })),
-        },
-
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        }
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        })),
+        }))
     }
 }
 
@@ -255,18 +272,24 @@ async fn search<'a>(
     let c_client = &state.client;
 
     let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+    let locked = arc_client.lock();
 
-    match client.get_index(index_name).await {
-        Ok(index) => match index.search().with_query(&info.0.q).execute().await {
-            Ok(results) => Ok(HttpResponse::Ok().json(QueryResponse::new(results))),
-            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                reason: format!("Nothing found"),
+    if let Ok(client) = locked {
+        match client.get_index(index_name).await {
+            Ok(index) => match index.search().with_query(&info.0.q).execute().await {
+                Ok(results) => Ok(HttpResponse::Ok().json(QueryResponse::new(results))),
+                Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                    reason: format!("Nothing found"),
+                })),
+            },
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("No client"),
             })),
-        },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        }
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        })),
+        }))
     }
 }
 
@@ -281,59 +304,65 @@ async fn create<'a>(
 
     let c_client = &state.client;
     let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+    let locked = arc_client.lock();
 
-    match client.get_index(index_name).await {
-        Ok(index) => {
-            let created_at = get_current_time_secs();
-            let uuid = Uuid::new_v4();
-            let entry = Entry {
-                id: uuid.to_hyphenated().to_string(),
-                title: info.title.clone(),
-                description: info.description.clone(),
-                created_at,
-                organization: info.organization.clone(),
-                privacy: match info.privacy {
-                    Some(p) => p,
-                    None => false,
-                },
-                links: vec![],
-                tags: vec![],
-                images: vec![],
-            };
+    if let Ok(client) = locked {
+        match client.get_index(index_name).await {
+            Ok(index) => {
+                let created_at = get_current_time_secs();
+                let uuid = Uuid::new_v4();
+                let entry = Entry {
+                    id: uuid.to_hyphenated().to_string(),
+                    title: info.title.clone(),
+                    description: info.description.clone(),
+                    created_at,
+                    organization: info.organization.clone(),
+                    privacy: match info.privacy {
+                        Some(p) => p,
+                        None => false,
+                    },
+                    links: vec![],
+                    tags: vec![],
+                    images: vec![],
+                };
 
-            match index.add_or_replace(&[entry], None).await {
-                Ok(progress) => match progress.get_status().await {
-                    Ok(status) => {
-                        let response = match status {
-                            UpdateStatus::Enqueued { content } => StatusResponse {
-                                update_id: content.update_id,
-                                state: format!("processing"),
-                            },
-                            UpdateStatus::Failed { content } => StatusResponse {
-                                update_id: content.update_id,
-                                state: format!("failed"),
-                            },
-                            UpdateStatus::Processed { content } => StatusResponse {
-                                update_id: content.update_id,
-                                state: format!("done"),
-                            },
-                        };
+                match index.add_or_replace(&[entry], None).await {
+                    Ok(progress) => match progress.get_status().await {
+                        Ok(status) => {
+                            let response = match status {
+                                UpdateStatus::Enqueued { content } => StatusResponse {
+                                    update_id: content.update_id,
+                                    state: format!("processing"),
+                                },
+                                UpdateStatus::Failed { content } => StatusResponse {
+                                    update_id: content.update_id,
+                                    state: format!("failed"),
+                                },
+                                UpdateStatus::Processed { content } => StatusResponse {
+                                    update_id: content.update_id,
+                                    state: format!("done"),
+                                },
+                            };
 
-                        Ok(HttpResponse::Ok().json(response))
-                    }
+                            Ok(HttpResponse::Ok().json(response))
+                        }
+                        Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                            reason: format!("Unable to get update status"),
+                        })),
+                    },
                     Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                        reason: format!("Unable to get update status"),
+                        reason: format!("Failed to create document"),
                     })),
-                },
-                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Failed to create document"),
-                })),
+                }
             }
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("No client"),
+            })),
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        })),
+        }))
     }
 }
 
@@ -348,77 +377,85 @@ async fn edit<'a>(
 
     let c_client = &state.client;
     let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+    let locked = arc_client.lock();
 
-    match client.get_index(index_name).await {
-        Ok(index) => {
-            let current_id = info.get_id();
-            match index.get_document::<Entry>(current_id).await {
-                Ok(current) => {
-                    let entry = Entry {
-                        id: info.get_id(),
-                        created_at: current.created_at,
-                        title: match &info.title {
-                            Some(val) => val.to_string(),
-                            None => current.title,
-                        },
-                        description: match &info.description {
-                            Some(val) => val.to_string(),
-                            None => current.description,
-                        },
+    if let Ok(client) = locked {
+        match client.get_index(index_name).await {
+            Ok(index) => {
+                let current_id = info.get_id();
+                match index.get_document::<Entry>(current_id).await {
+                    Ok(current) => {
+                        let entry = Entry {
+                            id: info.get_id(),
+                            created_at: current.created_at,
+                            title: match &info.title {
+                                Some(val) => val.to_string(),
+                                None => current.title,
+                            },
+                            description: match &info.description {
+                                Some(val) => val.to_string(),
+                                None => current.description,
+                            },
 
-                        organization: match &info.organization {
-                            Some(val) => Some(val.to_string()),
-                            None => current.organization,
-                        },
+                            organization: match &info.organization {
+                                Some(val) => Some(val.to_string()),
+                                None => current.organization,
+                            },
 
-                        privacy: match &info.privacy {
-                            Some(val) => *val,
-                            None => current.privacy,
-                        },
+                            privacy: match &info.privacy {
+                                Some(val) => *val,
+                                None => current.privacy,
+                            },
 
-                        links: vec![],
-                        tags: vec![],
-                        images: vec![],
-                    };
+                            links: vec![],
+                            tags: vec![],
+                            images: vec![],
+                        };
 
-                    match index.add_or_update(&[entry], None).await {
-                        Ok(progress) => match progress.get_status().await {
-                            Ok(status) => {
-                                let response = match status {
-                                    UpdateStatus::Enqueued { content } => StatusResponse {
-                                        update_id: content.update_id,
-                                        state: format!("processing"),
-                                    },
-                                    UpdateStatus::Failed { content } => StatusResponse {
-                                        update_id: content.update_id,
-                                        state: format!("failed"),
-                                    },
-                                    UpdateStatus::Processed { content } => StatusResponse {
-                                        update_id: content.update_id,
-                                        state: format!("done"),
-                                    },
-                                };
+                        match index.add_or_update(&[entry], None).await {
+                            Ok(progress) => match progress.get_status().await {
+                                Ok(status) => {
+                                    let response = match status {
+                                        UpdateStatus::Enqueued { content } => StatusResponse {
+                                            update_id: content.update_id,
+                                            state: format!("processing"),
+                                        },
+                                        UpdateStatus::Failed { content } => StatusResponse {
+                                            update_id: content.update_id,
+                                            state: format!("failed"),
+                                        },
+                                        UpdateStatus::Processed { content } => StatusResponse {
+                                            update_id: content.update_id,
+                                            state: format!("done"),
+                                        },
+                                    };
 
-                                Ok(HttpResponse::Ok().json(response))
-                            }
+                                    Ok(HttpResponse::Ok().json(response))
+                                }
+                                Err(_) => {
+                                    Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                                        reason: format!("Unable to get update status"),
+                                    }))
+                                }
+                            },
                             Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                                reason: format!("Unable to get update status"),
+                                reason: format!("Failed to create document"),
                             })),
-                        },
-                        Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                            reason: format!("Failed to create document"),
-                        })),
+                        }
                     }
+                    Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                        reason: format!("Failed to create document"),
+                    })),
                 }
-                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Failed to create document"),
-                })),
             }
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("No client"),
+            })),
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        })),
+        }))
     }
 }
 
@@ -436,11 +473,66 @@ async fn delete<'a>(
 
     let c_client = &state.client;
     let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+    let locked = arc_client.lock();
 
-    match client.get_index(index_name).await {
-        Ok(index) => match index.delete_document(to_delete).await {
-            Ok(progress) => match progress.get_status().await {
+    if let Ok(client) = locked {
+        match client.get_index(index_name).await {
+            Ok(index) => match index.delete_document(to_delete).await {
+                Ok(progress) => match progress.get_status().await {
+                    Ok(status) => {
+                        let response = match status {
+                            UpdateStatus::Enqueued { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("processing"),
+                            },
+                            UpdateStatus::Failed { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("failed"),
+                            },
+                            UpdateStatus::Processed { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("done"),
+                            },
+                        };
+                        Ok(HttpResponse::Ok().json(response))
+                    }
+                    Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                        reason: format!("Unable to get update status"),
+                    })),
+                },
+                Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                    reason: format!("Nothing to delete. Document id: {}", c_to_delete),
+                })),
+            },
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("No client"),
+            })),
+        }
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        }))
+    }
+}
+
+#[get("/check_update")]
+async fn check_update<'a>(
+    info: web::Query<UpdateQuery>,
+    data: web::Data<AppState<'a>>,
+) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let index_name = &state.index_name;
+
+    let c_client = &state.client;
+    let arc_client = &c_client.clone();
+    let locked = arc_client.lock();
+
+    if let Ok(client) = locked {
+        let update_id = info.update_id;
+
+        match client.get_index(index_name).await {
+            Ok(index) => match index.get_update(update_id).await {
                 Ok(status) => {
                     let response = match status {
                         UpdateStatus::Enqueued { content } => StatusResponse {
@@ -456,64 +548,22 @@ async fn delete<'a>(
                             state: format!("done"),
                         },
                     };
+
                     Ok(HttpResponse::Ok().json(response))
                 }
-                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Unable to get update status"),
+                Err(_) => Ok(HttpResponse::Ok().json(StatusResponse {
+                    update_id,
+                    state: format!("not found"),
                 })),
             },
-            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                reason: format!("Nothing to delete. Document id: {}", c_to_delete),
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("No client"),
             })),
-        },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        }
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        })),
-    }
-}
-
-#[get("/check_update")]
-async fn check_update<'a>(
-    info: web::Query<UpdateQuery>,
-    data: web::Data<AppState<'a>>,
-) -> Result<HttpResponse> {
-    let state = &data.clone();
-
-    let index_name = &state.index_name;
-
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-    let update_id = info.update_id;
-
-    match client.get_index(index_name).await {
-        Ok(index) => match index.get_update(update_id).await {
-            Ok(status) => {
-                let response = match status {
-                    UpdateStatus::Enqueued { content } => StatusResponse {
-                        update_id: content.update_id,
-                        state: format!("processing"),
-                    },
-                    UpdateStatus::Failed { content } => StatusResponse {
-                        update_id: content.update_id,
-                        state: format!("failed"),
-                    },
-                    UpdateStatus::Processed { content } => StatusResponse {
-                        update_id: content.update_id,
-                        state: format!("done"),
-                    },
-                };
-
-                Ok(HttpResponse::Ok().json(response))
-            }
-            Err(_) => Ok(HttpResponse::Ok().json(StatusResponse {
-                update_id,
-                state: format!("not found"),
-            })),
-        },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        }))
     }
 }
 
@@ -528,22 +578,28 @@ async fn get_by_id<'a>(
 
     let c_client = &state.client;
     let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+    let locked = arc_client.lock();
 
-    match client.get_index(index_name).await {
-        Ok(index) => {
-            let entry_id = path.into_inner().0;
-            let c_entry_id = entry_id.clone();
-            match index.get_document::<Entry>(entry_id).await {
-                Ok(entry) => Ok(HttpResponse::Ok().json(entry)),
-                Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                    reason: format!("No entry found with id: {}", c_entry_id),
-                })),
+    if let Ok(client) = locked {
+        match client.get_index(index_name).await {
+            Ok(index) => {
+                let entry_id = path.into_inner().0;
+                let c_entry_id = entry_id.clone();
+                match index.get_document::<Entry>(entry_id).await {
+                    Ok(entry) => Ok(HttpResponse::Ok().json(entry)),
+                    Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                        reason: format!("No entry found with id: {}", c_entry_id),
+                    })),
+                }
             }
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("No client"),
+            })),
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        })),
+        }))
     }
 }
 
@@ -552,16 +608,22 @@ async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
     let c_client = &state.client;
     let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+    let locked = arc_client.lock();
 
-    let meilie_health = client.is_healthy().await;
+    if let Ok(client) = locked {
+        let meilie_health = client.is_healthy().await;
 
-    let response = HealthResponse {
-        server_status: "ok".to_string(),
-        meilie_health,
-    };
+        let response = HealthResponse {
+            server_status: "ok".to_string(),
+            meilie_health,
+        };
 
-    Ok(HttpResponse::Ok().json(response))
+        Ok(HttpResponse::Ok().json(response))
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        }))
+    }
 }
 
 #[get("/stats")]
@@ -572,25 +634,31 @@ async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let index_name = &state.index_name;
 
     let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+    let locked = arc_client.lock();
 
-    match client.get_index(index_name).await {
-        Ok(index) => match index.get_stats().await {
-            Ok(meili_stats) => {
-                let stats = Stats {
-                    number_of_documents: meili_stats.number_of_documents,
-                    is_indexing: meili_stats.is_indexing,
-                };
+    if let Ok(client) = locked {
+        match client.get_index(index_name).await {
+            Ok(index) => match index.get_stats().await {
+                Ok(meili_stats) => {
+                    let stats = Stats {
+                        number_of_documents: meili_stats.number_of_documents,
+                        is_indexing: meili_stats.is_indexing,
+                    };
 
-                Ok(HttpResponse::Ok().json(stats))
-            }
+                    Ok(HttpResponse::Ok().json(stats))
+                }
+                Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                    reason: format!("No stats for client"),
+                })),
+            },
             Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No stats for client"),
+                reason: format!("No client"),
             })),
-        },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        }
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        })),
+        }))
     }
 }
 

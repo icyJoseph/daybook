@@ -21,11 +21,16 @@ pub async fn start_meilisearch(path: &str) -> std::io::Result<()> {
 
 /// Runs a simple check for client health
 /// and presence of `entries` index
-/// TODO: Instead of unwrap on each step, return the potential error
 pub async fn check_meilisearch<'a>(client: &Client<'a>, index_name: &str) -> Result<()> {
-    let index: Index = client.get_or_create(index_name).await.unwrap();
+    let index: Index = match client.get_or_create(index_name).await {
+        Ok(res) => res,
+        Err(why) => panic!("{:?}", why),
+    };
 
-    let stats: IndexStats = index.get_stats().await.unwrap();
+    let stats: IndexStats = match index.get_stats().await {
+        Ok(res) => res,
+        Err(why) => panic!("{:?}", why),
+    };
 
     let is_healthy = client.is_healthy().await;
 
