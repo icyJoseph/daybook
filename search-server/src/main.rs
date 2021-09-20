@@ -607,15 +607,16 @@ async fn main() -> Result<()> {
     let index_name_key = "INDEX_NAME";
     let meili_path = "MEILI_PATH";
 
+    let ms_path = env::var(meili_path).unwrap_or("./meilisearch".to_string());
+
     // Run, only if all four variables exist
     match (
         env::var(ms_secret_key),
         env::var(ms_url_key),
         env::var(actix_url_key),
         env::var(index_name_key),
-        env::var(meili_path),
     ) {
-        (Ok(secret_key), Ok(ms_url), Ok(actix_url), Ok(index_name), Ok(ms_path)) => {
+        (Ok(secret_key), Ok(ms_url), Ok(actix_url), Ok(index_name)) => {
             match start_meilisearch(&ms_path).await {
                 Ok(_) => {}
                 Err(why) => panic!("Could not start MeiliSearch: {:?}", why),
