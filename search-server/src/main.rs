@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use start::{check_meilisearch, start_meilisearch};
 use std::env;
 use std::io::Result;
-use std::sync::{Arc, Mutex};
+
 use uuid::Uuid;
 
 impl QueryResponse<Entry> {
@@ -66,7 +66,8 @@ struct Stats {
 }
 
 struct AppState<'a> {
-    client: Arc<Mutex<Client<'a>>>,
+    client_url: &'a str,
+    client_secret: &'a str,
     index_name: &'a str,
 }
 
@@ -85,8 +86,13 @@ async fn verify_token(token: String) -> bool {
                 .send()
                 .await;
 
-            let status = res.unwrap().status();
-            status == 200
+            match res {
+                Ok(response) => response.status() == 200,
+                Err(_) => {
+                    println!("Failed to react: {}", key);
+                    return false;
+                }
+            }
         }
         Err(_) => false,
     }
@@ -113,13 +119,9 @@ async fn later_than<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => {
             let filter = format!("created_at >= {}", info.created_at);
 
@@ -128,7 +130,7 @@ async fn later_than<'a>(
                     .search()
                     .with_offset(offset)
                     .with_limit(limit)
-                    .with_filters(&filter)
+                    .with_filter(&filter)
                     .execute()
                     .await
                     .unwrap_or(SearchResults::<Entry> {
@@ -148,7 +150,7 @@ async fn later_than<'a>(
 
                     let mut results: SearchResults<Entry> = index
                         .search()
-                        .with_filters(&filter)
+                        .with_filter(&filter)
                         .with_offset(offset)
                         .with_limit(limit)
                         .execute()
@@ -171,15 +173,15 @@ async fn later_than<'a>(
 
                         let next: SearchResults<Entry> = index
                             .search()
-                            .with_filters(&filter)
+                            .with_filter(&filter)
                             .with_offset(offset)
                             .with_limit(limit)
                             .execute()
                             .await
                             .unwrap_or(SearchResults::<Entry> {
                                 hits: vec![],
-                                offset: 0,
-                                limit: 20,
+                                offset,
+                                limit,
                                 nb_hits: 0,
                                 exhaustive_nb_hits: false,
                                 facets_distribution: None,
@@ -222,14 +224,9 @@ async fn bulk<'a>(
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
     let state = &data.clone();
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let index_name = &state.index_name;
-
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => match index.get_documents::<Entry>(None, info.qty, None).await {
             Ok(all) => Ok(HttpResponse::Ok().json(all)),
             Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
@@ -250,14 +247,9 @@ async fn search<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => match index.search().with_query(&info.0.q).execute().await {
             Ok(results) => Ok(HttpResponse::Ok().json(QueryResponse::new(results))),
             Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
@@ -277,13 +269,9 @@ async fn create<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => {
             let created_at = get_current_time_secs();
             let uuid = Uuid::new_v4();
@@ -306,9 +294,13 @@ async fn create<'a>(
                 Ok(progress) => match progress.get_status().await {
                     Ok(status) => {
                         let response = match status {
-                            UpdateStatus::Enqueued { content } => StatusResponse {
+                            UpdateStatus::Processing { content } => StatusResponse {
                                 update_id: content.update_id,
                                 state: format!("processing"),
+                            },
+                            UpdateStatus::Enqueued { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("enqueued"),
                             },
                             UpdateStatus::Failed { content } => StatusResponse {
                                 update_id: content.update_id,
@@ -344,13 +336,9 @@ async fn edit<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => {
             let current_id = info.get_id();
             match index.get_document::<Entry>(current_id).await {
@@ -382,13 +370,17 @@ async fn edit<'a>(
                         images: vec![],
                     };
 
-                    match index.add_or_update(&[entry], None).await {
+                    match index.add_or_update(&[entry], Some("id")).await {
                         Ok(progress) => match progress.get_status().await {
                             Ok(status) => {
                                 let response = match status {
-                                    UpdateStatus::Enqueued { content } => StatusResponse {
+                                    UpdateStatus::Processing { content } => StatusResponse {
                                         update_id: content.update_id,
                                         state: format!("processing"),
+                                    },
+                                    UpdateStatus::Enqueued { content } => StatusResponse {
+                                        update_id: content.update_id,
+                                        state: format!("enqueued"),
                                     },
                                     UpdateStatus::Failed { content } => StatusResponse {
                                         update_id: content.update_id,
@@ -432,20 +424,20 @@ async fn delete<'a>(
 
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => match index.delete_document(to_delete).await {
             Ok(progress) => match progress.get_status().await {
                 Ok(status) => {
                     let response = match status {
-                        UpdateStatus::Enqueued { content } => StatusResponse {
+                        UpdateStatus::Processing { content } => StatusResponse {
                             update_id: content.update_id,
                             state: format!("processing"),
+                        },
+                        UpdateStatus::Enqueued { content } => StatusResponse {
+                            update_id: content.update_id,
+                            state: format!("enqueued"),
                         },
                         UpdateStatus::Failed { content } => StatusResponse {
                             update_id: content.update_id,
@@ -479,20 +471,21 @@ async fn check_update<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
     let update_id = info.update_id;
 
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => match index.get_update(update_id).await {
             Ok(status) => {
                 let response = match status {
-                    UpdateStatus::Enqueued { content } => StatusResponse {
+                    UpdateStatus::Processing { content } => StatusResponse {
                         update_id: content.update_id,
                         state: format!("processing"),
+                    },
+                    UpdateStatus::Enqueued { content } => StatusResponse {
+                        update_id: content.update_id,
+                        state: format!("enqueued"),
                     },
                     UpdateStatus::Failed { content } => StatusResponse {
                         update_id: content.update_id,
@@ -524,13 +517,9 @@ async fn get_by_id<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => {
             let entry_id = path.into_inner().0;
             let c_entry_id = entry_id.clone();
@@ -550,9 +539,8 @@ async fn get_by_id<'a>(
 #[get("/health")]
 async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+
+    let client = Client::new(state.client_url, state.client_secret);
 
     let meilie_health = client.is_healthy().await;
 
@@ -567,14 +555,10 @@ async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
 #[get("/stats")]
 async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
-    let c_client = &state.client;
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => match index.get_stats().await {
             Ok(meili_stats) => {
                 let stats = Stats {
@@ -636,10 +620,9 @@ async fn main() -> Result<()> {
                 Err(why) => panic!("Could not check MeiliSearch: {:?}", why),
             };
 
-            let client = Arc::new(Mutex::new(ms_client));
-
             let state = web::Data::new(AppState {
-                client,
+                client_url: boxed_ms_url,
+                client_secret: boxed_secret_key,
                 index_name: boxed_index_name,
             });
 
