@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use start::{check_meilisearch, start_meilisearch};
 use std::env;
 use std::io::Result;
-use std::sync::{Arc, Mutex};
+
 use uuid::Uuid;
 
 impl QueryResponse<Entry> {
@@ -66,7 +66,8 @@ struct Stats {
 }
 
 struct AppState<'a> {
-    client: Arc<Mutex<Client<'a>>>,
+    client_url: &'a str,
+    client_secret: &'a str,
     index_name: &'a str,
 }
 
@@ -118,23 +119,40 @@ async fn later_than<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let locked = arc_client.lock();
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            let filter = format!("created_at >= {}", info.created_at);
 
-    if let Ok(client) = locked {
-        match client.get_index(index_name).await {
-            Ok(index) => {
-                let filter = format!("created_at >= {}", info.created_at);
+            let mut response = match (info.offset, info.limit) {
+                (Some(offset), Some(limit)) => index
+                    .search()
+                    .with_offset(offset)
+                    .with_limit(limit)
+                    .with_filter(&filter)
+                    .execute()
+                    .await
+                    .unwrap_or(SearchResults::<Entry> {
+                        hits: vec![],
+                        offset: 0,
+                        limit: 20,
+                        nb_hits: 0,
+                        exhaustive_nb_hits: false,
+                        facets_distribution: None,
+                        exhaustive_facets_count: None,
+                        processing_time_ms: 0,
+                        query: "".to_string(),
+                    }),
+                _ => {
+                    let mut offset = 0;
+                    let mut limit = 100;
 
-                let mut response = match (info.offset, info.limit) {
-                    (Some(offset), Some(limit)) => index
+                    let mut results: SearchResults<Entry> = index
                         .search()
+                        .with_filter(&filter)
                         .with_offset(offset)
                         .with_limit(limit)
-                        .with_filters(&filter)
                         .execute()
                         .await
                         .unwrap_or(SearchResults::<Entry> {
@@ -147,22 +165,23 @@ async fn later_than<'a>(
                             exhaustive_facets_count: None,
                             processing_time_ms: 0,
                             query: "".to_string(),
-                        }),
-                    _ => {
-                        let mut offset = 0;
-                        let mut limit = 100;
+                        });
 
-                        let mut results: SearchResults<Entry> = index
+                    loop {
+                        offset = limit;
+                        limit += 100;
+
+                        let next: SearchResults<Entry> = index
                             .search()
-                            .with_filters(&filter)
+                            .with_filter(&filter)
                             .with_offset(offset)
                             .with_limit(limit)
                             .execute()
                             .await
                             .unwrap_or(SearchResults::<Entry> {
                                 hits: vec![],
-                                offset: 0,
-                                limit: 20,
+                                offset,
+                                limit,
                                 nb_hits: 0,
                                 exhaustive_nb_hits: false,
                                 facets_distribution: None,
@@ -171,59 +190,31 @@ async fn later_than<'a>(
                                 query: "".to_string(),
                             });
 
-                        loop {
-                            offset = limit;
-                            limit += 100;
-
-                            let next: SearchResults<Entry> = index
-                                .search()
-                                .with_filters(&filter)
-                                .with_offset(offset)
-                                .with_limit(limit)
-                                .execute()
-                                .await
-                                .unwrap_or(SearchResults::<Entry> {
-                                    hits: vec![],
-                                    offset: 0,
-                                    limit: 20,
-                                    nb_hits: 0,
-                                    exhaustive_nb_hits: false,
-                                    facets_distribution: None,
-                                    exhaustive_facets_count: None,
-                                    processing_time_ms: 0,
-                                    query: "".to_string(),
-                                });
-
-                            if next.hits.len() == 0 {
-                                break;
-                            }
-
-                            for hit in next.hits {
-                                results.hits.push(hit);
-                            }
-
-                            results.processing_time_ms += next.processing_time_ms;
+                        if next.hits.len() == 0 {
+                            break;
                         }
 
-                        results
+                        for hit in next.hits {
+                            results.hits.push(hit);
+                        }
+
+                        results.processing_time_ms += next.processing_time_ms;
                     }
-                };
 
-                response
-                    .hits
-                    .sort_by(|a, b| a.result.created_at.cmp(&b.result.created_at).reverse());
+                    results
+                }
+            };
 
-                Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
-            }
+            response
+                .hits
+                .sort_by(|a, b| a.result.created_at.cmp(&b.result.created_at).reverse());
 
-            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No client"),
-            })),
+            Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
         }
-    } else {
-        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        }))
+        })),
     }
 }
 
@@ -233,30 +224,19 @@ async fn bulk<'a>(
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
     let state = &data.clone();
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let index_name = &state.index_name;
-
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let locked = arc_client.lock();
-
-    if let Ok(client) = locked {
-        match client.get_index(index_name).await {
-            Ok(index) => match index.get_documents::<Entry>(None, info.qty, None).await {
-                Ok(all) => Ok(HttpResponse::Ok().json(all)),
-                Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                    reason: format!("No documents found"),
-                })),
-            },
-
-            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No client"),
+    match client.get_index(state.index_name).await {
+        Ok(index) => match index.get_documents::<Entry>(None, info.qty, None).await {
+            Ok(all) => Ok(HttpResponse::Ok().json(all)),
+            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                reason: format!("No documents found"),
             })),
-        }
-    } else {
-        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        },
+
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        }))
+        })),
     }
 }
 
@@ -267,29 +247,18 @@ async fn search<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-
-    let arc_client = &c_client.clone();
-    let locked = arc_client.lock();
-
-    if let Ok(client) = locked {
-        match client.get_index(index_name).await {
-            Ok(index) => match index.search().with_query(&info.0.q).execute().await {
-                Ok(results) => Ok(HttpResponse::Ok().json(QueryResponse::new(results))),
-                Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                    reason: format!("Nothing found"),
-                })),
-            },
-            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No client"),
+    match client.get_index(state.index_name).await {
+        Ok(index) => match index.search().with_query(&info.0.q).execute().await {
+            Ok(results) => Ok(HttpResponse::Ok().json(QueryResponse::new(results))),
+            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                reason: format!("Nothing found"),
             })),
-        }
-    } else {
-        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        },
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        }))
+        })),
     }
 }
 
@@ -300,69 +269,63 @@ async fn create<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let locked = arc_client.lock();
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            let created_at = get_current_time_secs();
+            let uuid = Uuid::new_v4();
+            let entry = Entry {
+                id: uuid.to_hyphenated().to_string(),
+                title: info.title.clone(),
+                description: info.description.clone(),
+                created_at,
+                organization: info.organization.clone(),
+                privacy: match info.privacy {
+                    Some(p) => p,
+                    None => false,
+                },
+                links: vec![],
+                tags: vec![],
+                images: vec![],
+            };
 
-    if let Ok(client) = locked {
-        match client.get_index(index_name).await {
-            Ok(index) => {
-                let created_at = get_current_time_secs();
-                let uuid = Uuid::new_v4();
-                let entry = Entry {
-                    id: uuid.to_hyphenated().to_string(),
-                    title: info.title.clone(),
-                    description: info.description.clone(),
-                    created_at,
-                    organization: info.organization.clone(),
-                    privacy: match info.privacy {
-                        Some(p) => p,
-                        None => false,
-                    },
-                    links: vec![],
-                    tags: vec![],
-                    images: vec![],
-                };
+            match index.add_or_replace(&[entry], None).await {
+                Ok(progress) => match progress.get_status().await {
+                    Ok(status) => {
+                        let response = match status {
+                            UpdateStatus::Processing { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("processing"),
+                            },
+                            UpdateStatus::Enqueued { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("enqueued"),
+                            },
+                            UpdateStatus::Failed { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("failed"),
+                            },
+                            UpdateStatus::Processed { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("done"),
+                            },
+                        };
 
-                match index.add_or_replace(&[entry], None).await {
-                    Ok(progress) => match progress.get_status().await {
-                        Ok(status) => {
-                            let response = match status {
-                                UpdateStatus::Enqueued { content } => StatusResponse {
-                                    update_id: content.update_id,
-                                    state: format!("processing"),
-                                },
-                                UpdateStatus::Failed { content } => StatusResponse {
-                                    update_id: content.update_id,
-                                    state: format!("failed"),
-                                },
-                                UpdateStatus::Processed { content } => StatusResponse {
-                                    update_id: content.update_id,
-                                    state: format!("done"),
-                                },
-                            };
-
-                            Ok(HttpResponse::Ok().json(response))
-                        }
-                        Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                            reason: format!("Unable to get update status"),
-                        })),
-                    },
+                        Ok(HttpResponse::Ok().json(response))
+                    }
                     Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                        reason: format!("Failed to create document"),
+                        reason: format!("Unable to get update status"),
                     })),
-                }
+                },
+                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: format!("Failed to create document"),
+                })),
             }
-            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No client"),
-            })),
         }
-    } else {
-        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        }))
+        })),
     }
 }
 
@@ -373,89 +336,81 @@ async fn edit<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let locked = arc_client.lock();
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            let current_id = info.get_id();
+            match index.get_document::<Entry>(current_id).await {
+                Ok(current) => {
+                    let entry = Entry {
+                        id: info.get_id(),
+                        created_at: current.created_at,
+                        title: match &info.title {
+                            Some(val) => val.to_string(),
+                            None => current.title,
+                        },
+                        description: match &info.description {
+                            Some(val) => val.to_string(),
+                            None => current.description,
+                        },
 
-    if let Ok(client) = locked {
-        match client.get_index(index_name).await {
-            Ok(index) => {
-                let current_id = info.get_id();
-                match index.get_document::<Entry>(current_id).await {
-                    Ok(current) => {
-                        let entry = Entry {
-                            id: info.get_id(),
-                            created_at: current.created_at,
-                            title: match &info.title {
-                                Some(val) => val.to_string(),
-                                None => current.title,
-                            },
-                            description: match &info.description {
-                                Some(val) => val.to_string(),
-                                None => current.description,
-                            },
+                        organization: match &info.organization {
+                            Some(val) => Some(val.to_string()),
+                            None => current.organization,
+                        },
 
-                            organization: match &info.organization {
-                                Some(val) => Some(val.to_string()),
-                                None => current.organization,
-                            },
+                        privacy: match &info.privacy {
+                            Some(val) => *val,
+                            None => current.privacy,
+                        },
 
-                            privacy: match &info.privacy {
-                                Some(val) => *val,
-                                None => current.privacy,
-                            },
+                        links: vec![],
+                        tags: vec![],
+                        images: vec![],
+                    };
 
-                            links: vec![],
-                            tags: vec![],
-                            images: vec![],
-                        };
+                    match index.add_or_update(&[entry], Some("id")).await {
+                        Ok(progress) => match progress.get_status().await {
+                            Ok(status) => {
+                                let response = match status {
+                                    UpdateStatus::Processing { content } => StatusResponse {
+                                        update_id: content.update_id,
+                                        state: format!("processing"),
+                                    },
+                                    UpdateStatus::Enqueued { content } => StatusResponse {
+                                        update_id: content.update_id,
+                                        state: format!("enqueued"),
+                                    },
+                                    UpdateStatus::Failed { content } => StatusResponse {
+                                        update_id: content.update_id,
+                                        state: format!("failed"),
+                                    },
+                                    UpdateStatus::Processed { content } => StatusResponse {
+                                        update_id: content.update_id,
+                                        state: format!("done"),
+                                    },
+                                };
 
-                        match index.add_or_update(&[entry], None).await {
-                            Ok(progress) => match progress.get_status().await {
-                                Ok(status) => {
-                                    let response = match status {
-                                        UpdateStatus::Enqueued { content } => StatusResponse {
-                                            update_id: content.update_id,
-                                            state: format!("processing"),
-                                        },
-                                        UpdateStatus::Failed { content } => StatusResponse {
-                                            update_id: content.update_id,
-                                            state: format!("failed"),
-                                        },
-                                        UpdateStatus::Processed { content } => StatusResponse {
-                                            update_id: content.update_id,
-                                            state: format!("done"),
-                                        },
-                                    };
-
-                                    Ok(HttpResponse::Ok().json(response))
-                                }
-                                Err(_) => {
-                                    Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                                        reason: format!("Unable to get update status"),
-                                    }))
-                                }
-                            },
+                                Ok(HttpResponse::Ok().json(response))
+                            }
                             Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                                reason: format!("Failed to create document"),
+                                reason: format!("Unable to get update status"),
                             })),
-                        }
+                        },
+                        Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                            reason: format!("Failed to create document"),
+                        })),
                     }
-                    Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                        reason: format!("Failed to create document"),
-                    })),
                 }
+                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: format!("Failed to create document"),
+                })),
             }
-            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No client"),
-            })),
         }
-    } else {
-        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        }))
+        })),
     }
 }
 
@@ -469,75 +424,20 @@ async fn delete<'a>(
 
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let locked = arc_client.lock();
-
-    if let Ok(client) = locked {
-        match client.get_index(index_name).await {
-            Ok(index) => match index.delete_document(to_delete).await {
-                Ok(progress) => match progress.get_status().await {
-                    Ok(status) => {
-                        let response = match status {
-                            UpdateStatus::Enqueued { content } => StatusResponse {
-                                update_id: content.update_id,
-                                state: format!("processing"),
-                            },
-                            UpdateStatus::Failed { content } => StatusResponse {
-                                update_id: content.update_id,
-                                state: format!("failed"),
-                            },
-                            UpdateStatus::Processed { content } => StatusResponse {
-                                update_id: content.update_id,
-                                state: format!("done"),
-                            },
-                        };
-                        Ok(HttpResponse::Ok().json(response))
-                    }
-                    Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                        reason: format!("Unable to get update status"),
-                    })),
-                },
-                Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                    reason: format!("Nothing to delete. Document id: {}", c_to_delete),
-                })),
-            },
-            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No client"),
-            })),
-        }
-    } else {
-        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        }))
-    }
-}
-
-#[get("/check_update")]
-async fn check_update<'a>(
-    info: web::Query<UpdateQuery>,
-    data: web::Data<AppState<'a>>,
-) -> Result<HttpResponse> {
-    let state = &data.clone();
-
-    let index_name = &state.index_name;
-
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let locked = arc_client.lock();
-
-    if let Ok(client) = locked {
-        let update_id = info.update_id;
-
-        match client.get_index(index_name).await {
-            Ok(index) => match index.get_update(update_id).await {
+    match client.get_index(state.index_name).await {
+        Ok(index) => match index.delete_document(to_delete).await {
+            Ok(progress) => match progress.get_status().await {
                 Ok(status) => {
                     let response = match status {
-                        UpdateStatus::Enqueued { content } => StatusResponse {
+                        UpdateStatus::Processing { content } => StatusResponse {
                             update_id: content.update_id,
                             state: format!("processing"),
+                        },
+                        UpdateStatus::Enqueued { content } => StatusResponse {
+                            update_id: content.update_id,
+                            state: format!("enqueued"),
                         },
                         UpdateStatus::Failed { content } => StatusResponse {
                             update_id: content.update_id,
@@ -548,22 +448,65 @@ async fn check_update<'a>(
                             state: format!("done"),
                         },
                     };
-
                     Ok(HttpResponse::Ok().json(response))
                 }
-                Err(_) => Ok(HttpResponse::Ok().json(StatusResponse {
-                    update_id,
-                    state: format!("not found"),
+                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: format!("Unable to get update status"),
                 })),
             },
-            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No client"),
+            Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                reason: format!("Nothing to delete. Document id: {}", c_to_delete),
             })),
-        }
-    } else {
-        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        },
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        }))
+        })),
+    }
+}
+
+#[get("/check_update")]
+async fn check_update<'a>(
+    info: web::Query<UpdateQuery>,
+    data: web::Data<AppState<'a>>,
+) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let client = Client::new(state.client_url, state.client_secret);
+
+    let update_id = info.update_id;
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => match index.get_update(update_id).await {
+            Ok(status) => {
+                let response = match status {
+                    UpdateStatus::Processing { content } => StatusResponse {
+                        update_id: content.update_id,
+                        state: format!("processing"),
+                    },
+                    UpdateStatus::Enqueued { content } => StatusResponse {
+                        update_id: content.update_id,
+                        state: format!("enqueued"),
+                    },
+                    UpdateStatus::Failed { content } => StatusResponse {
+                        update_id: content.update_id,
+                        state: format!("failed"),
+                    },
+                    UpdateStatus::Processed { content } => StatusResponse {
+                        update_id: content.update_id,
+                        state: format!("done"),
+                    },
+                };
+
+                Ok(HttpResponse::Ok().json(response))
+            }
+            Err(_) => Ok(HttpResponse::Ok().json(StatusResponse {
+                update_id,
+                state: format!("not found"),
+            })),
+        },
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
     }
 }
 
@@ -574,91 +517,64 @@ async fn get_by_id<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let locked = arc_client.lock();
-
-    if let Ok(client) = locked {
-        match client.get_index(index_name).await {
-            Ok(index) => {
-                let entry_id = path.into_inner().0;
-                let c_entry_id = entry_id.clone();
-                match index.get_document::<Entry>(entry_id).await {
-                    Ok(entry) => Ok(HttpResponse::Ok().json(entry)),
-                    Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                        reason: format!("No entry found with id: {}", c_entry_id),
-                    })),
-                }
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            let entry_id = path.into_inner().0;
+            let c_entry_id = entry_id.clone();
+            match index.get_document::<Entry>(entry_id).await {
+                Ok(entry) => Ok(HttpResponse::Ok().json(entry)),
+                Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                    reason: format!("No entry found with id: {}", c_entry_id),
+                })),
             }
-            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No client"),
-            })),
         }
-    } else {
-        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        }))
+        })),
     }
 }
 
 #[get("/health")]
 async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let locked = arc_client.lock();
 
-    if let Ok(client) = locked {
-        let meilie_health = client.is_healthy().await;
+    let client = Client::new(state.client_url, state.client_secret);
 
-        let response = HealthResponse {
-            server_status: "ok".to_string(),
-            meilie_health,
-        };
+    let meilie_health = client.is_healthy().await;
 
-        Ok(HttpResponse::Ok().json(response))
-    } else {
-        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        }))
-    }
+    let response = HealthResponse {
+        server_status: "ok".to_string(),
+        meilie_health,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[get("/stats")]
 async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
-    let c_client = &state.client;
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let arc_client = &c_client.clone();
-    let locked = arc_client.lock();
+    match client.get_index(state.index_name).await {
+        Ok(index) => match index.get_stats().await {
+            Ok(meili_stats) => {
+                let stats = Stats {
+                    number_of_documents: meili_stats.number_of_documents,
+                    is_indexing: meili_stats.is_indexing,
+                };
 
-    if let Ok(client) = locked {
-        match client.get_index(index_name).await {
-            Ok(index) => match index.get_stats().await {
-                Ok(meili_stats) => {
-                    let stats = Stats {
-                        number_of_documents: meili_stats.number_of_documents,
-                        is_indexing: meili_stats.is_indexing,
-                    };
-
-                    Ok(HttpResponse::Ok().json(stats))
-                }
-                Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                    reason: format!("No stats for client"),
-                })),
-            },
+                Ok(HttpResponse::Ok().json(stats))
+            }
             Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No client"),
+                reason: format!("No stats for client"),
             })),
-        }
-    } else {
-        Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        },
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
-        }))
+        })),
     }
 }
 
@@ -704,10 +620,9 @@ async fn main() -> Result<()> {
                 Err(why) => panic!("Could not check MeiliSearch: {:?}", why),
             };
 
-            let client = Arc::new(Mutex::new(ms_client));
-
             let state = web::Data::new(AppState {
-                client,
+                client_url: boxed_ms_url,
+                client_secret: boxed_secret_key,
                 index_name: boxed_index_name,
             });
 
