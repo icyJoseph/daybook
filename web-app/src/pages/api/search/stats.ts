@@ -3,7 +3,7 @@ import { AccessTokenError } from "@auth0/nextjs-auth0/dist/utils/errors";
 
 import auth0 from "utils/auth0";
 
-async function query(req: NextApiRequest, res: NextApiResponse) {
+async function stats(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(401).json({ statusCode: 401 });
 
   try {
@@ -15,9 +15,7 @@ async function query(req: NextApiRequest, res: NextApiResponse) {
 
     if (!accessToken) return res.status(401).json({ statusCode: 401 });
 
-    const { query } = req;
-
-    const data = await fetch(`${process.env.PROXY_URL}/search?q=${query.q}`, {
+    const data = await fetch(`${process.env.PROXY_URL}/stats`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     }).then((res) => res.json());
 
@@ -35,4 +33,4 @@ async function query(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default auth0.withApiAuthRequired(query);
+export default auth0.withApiAuthRequired(stats);

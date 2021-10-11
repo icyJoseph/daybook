@@ -1,11 +1,10 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { FieldValues } from "react-hook-form";
+import type { FieldValues } from "react-hook-form";
 import { useQueryClient } from "react-query";
 import { Box, Button, Heading } from "grommet";
 
 import { EntryForm } from "components/EntryForm";
-import auth0 from "utils/auth0";
 import { isUpdate, PollingUpdate } from "hooks/usePollingUpdates";
 
 export default function Create() {
@@ -45,12 +44,20 @@ export default function Create() {
       <Head>
         <title>Create</title>
       </Head>
+
       <Box as="header" pad="small">
         <Heading as="h2" margin="0 auto">
           Create a new entry
         </Heading>
       </Box>
-      <Box as="main" width={{ max: "45ch" }} margin="12px auto">
+
+      <Box
+        responsive
+        as="main"
+        width={{ max: "65ch" }}
+        margin="12px auto"
+        pad="medium"
+      >
         <EntryForm onSubmit={onSubmit}>
           <Button type="submit" primary label="Create" />
         </EntryForm>
@@ -58,5 +65,3 @@ export default function Create() {
     </>
   );
 }
-
-export const getServerSideProps = auth0.withPageAuthRequired();

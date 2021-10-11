@@ -1,4 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { AccessTokenError } from "@auth0/nextjs-auth0/dist/utils/errors";
+
 import { stegcloak } from "utils/cloak";
 import auth0 from "utils/auth0";
 
@@ -20,10 +22,11 @@ async function reveal(req: NextApiRequest, res: NextApiResponse) {
 
     return res.json({ revealed });
   } catch (err) {
-    if ("code" in err) {
+    if (err instanceof AccessTokenError) {
       if (err.code === "access_token_expired") {
         res.statusCode = 301;
-        res.redirect("/api/auth/logout");
+        res.redirect("/api/auth/logout").end();
+        return;
       }
     } else {
       return res.status(500).json({ statusCode: 500 });

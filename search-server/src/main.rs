@@ -12,7 +12,6 @@ use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthent
 use cached::proc_macro::cached;
 use dotenv;
 use entry::Entry;
-use env_logger::Env;
 use helpers::*;
 use meilisearch_sdk::{client::*, progress::*, search::*};
 use mutation::*;
@@ -21,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use start::{check_meilisearch, start_meilisearch};
 use std::env;
 use std::io::Result;
-use std::sync::{Arc, Mutex};
+
 use uuid::Uuid;
 
 impl QueryResponse<Entry> {
@@ -60,12 +59,19 @@ struct HealthResponse {
     meilie_health: bool,
 }
 
+#[derive(Serialize)]
+struct Stats {
+    number_of_documents: usize,
+    is_indexing: bool,
+}
+
 struct AppState<'a> {
-    client: Arc<Mutex<Client<'a>>>,
+    client_url: &'a str,
+    client_secret: &'a str,
     index_name: &'a str,
 }
 
-#[cached(size = 1, time = 120)]
+#[cached(size = 1, time = 180)]
 async fn verify_token(token: String) -> bool {
     let web_client = actix_web::client::Client::default();
 
@@ -80,8 +86,13 @@ async fn verify_token(token: String) -> bool {
                 .send()
                 .await;
 
-            let status = res.unwrap().status();
-            status == 200
+            match res {
+                Ok(response) => response.status() == 200,
+                Err(_) => {
+                    println!("Failed to react: {}", key);
+                    return false;
+                }
+            }
         }
         Err(_) => false,
     }
@@ -108,13 +119,9 @@ async fn later_than<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => {
             let filter = format!("created_at >= {}", info.created_at);
 
@@ -123,7 +130,7 @@ async fn later_than<'a>(
                     .search()
                     .with_offset(offset)
                     .with_limit(limit)
-                    .with_filters(&filter)
+                    .with_filter(&filter)
                     .execute()
                     .await
                     .unwrap_or(SearchResults::<Entry> {
@@ -143,7 +150,7 @@ async fn later_than<'a>(
 
                     let mut results: SearchResults<Entry> = index
                         .search()
-                        .with_filters(&filter)
+                        .with_filter(&filter)
                         .with_offset(offset)
                         .with_limit(limit)
                         .execute()
@@ -166,15 +173,15 @@ async fn later_than<'a>(
 
                         let next: SearchResults<Entry> = index
                             .search()
-                            .with_filters(&filter)
+                            .with_filter(&filter)
                             .with_offset(offset)
                             .with_limit(limit)
                             .execute()
                             .await
                             .unwrap_or(SearchResults::<Entry> {
                                 hits: vec![],
-                                offset: 0,
-                                limit: 20,
+                                offset,
+                                limit,
                                 nb_hits: 0,
                                 exhaustive_nb_hits: false,
                                 facets_distribution: None,
@@ -217,14 +224,9 @@ async fn bulk<'a>(
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
     let state = &data.clone();
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let index_name = &state.index_name;
-
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => match index.get_documents::<Entry>(None, info.qty, None).await {
             Ok(all) => Ok(HttpResponse::Ok().json(all)),
             Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
@@ -245,14 +247,9 @@ async fn search<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => match index.search().with_query(&info.0.q).execute().await {
             Ok(results) => Ok(HttpResponse::Ok().json(QueryResponse::new(results))),
             Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
@@ -272,13 +269,9 @@ async fn create<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => {
             let created_at = get_current_time_secs();
             let uuid = Uuid::new_v4();
@@ -301,9 +294,13 @@ async fn create<'a>(
                 Ok(progress) => match progress.get_status().await {
                     Ok(status) => {
                         let response = match status {
-                            UpdateStatus::Enqueued { content } => StatusResponse {
+                            UpdateStatus::Processing { content } => StatusResponse {
                                 update_id: content.update_id,
                                 state: format!("processing"),
+                            },
+                            UpdateStatus::Enqueued { content } => StatusResponse {
+                                update_id: content.update_id,
+                                state: format!("enqueued"),
                             },
                             UpdateStatus::Failed { content } => StatusResponse {
                                 update_id: content.update_id,
@@ -339,13 +336,9 @@ async fn edit<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => {
             let current_id = info.get_id();
             match index.get_document::<Entry>(current_id).await {
@@ -377,13 +370,17 @@ async fn edit<'a>(
                         images: vec![],
                     };
 
-                    match index.add_or_update(&[entry], None).await {
+                    match index.add_or_update(&[entry], Some("id")).await {
                         Ok(progress) => match progress.get_status().await {
                             Ok(status) => {
                                 let response = match status {
-                                    UpdateStatus::Enqueued { content } => StatusResponse {
+                                    UpdateStatus::Processing { content } => StatusResponse {
                                         update_id: content.update_id,
                                         state: format!("processing"),
+                                    },
+                                    UpdateStatus::Enqueued { content } => StatusResponse {
+                                        update_id: content.update_id,
+                                        state: format!("enqueued"),
                                     },
                                     UpdateStatus::Failed { content } => StatusResponse {
                                         update_id: content.update_id,
@@ -427,20 +424,20 @@ async fn delete<'a>(
 
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => match index.delete_document(to_delete).await {
             Ok(progress) => match progress.get_status().await {
                 Ok(status) => {
                     let response = match status {
-                        UpdateStatus::Enqueued { content } => StatusResponse {
+                        UpdateStatus::Processing { content } => StatusResponse {
                             update_id: content.update_id,
                             state: format!("processing"),
+                        },
+                        UpdateStatus::Enqueued { content } => StatusResponse {
+                            update_id: content.update_id,
+                            state: format!("enqueued"),
                         },
                         UpdateStatus::Failed { content } => StatusResponse {
                             update_id: content.update_id,
@@ -474,20 +471,21 @@ async fn check_update<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
     let update_id = info.update_id;
 
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => match index.get_update(update_id).await {
             Ok(status) => {
                 let response = match status {
-                    UpdateStatus::Enqueued { content } => StatusResponse {
+                    UpdateStatus::Processing { content } => StatusResponse {
                         update_id: content.update_id,
                         state: format!("processing"),
+                    },
+                    UpdateStatus::Enqueued { content } => StatusResponse {
+                        update_id: content.update_id,
+                        state: format!("enqueued"),
                     },
                     UpdateStatus::Failed { content } => StatusResponse {
                         update_id: content.update_id,
@@ -519,13 +517,9 @@ async fn get_by_id<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let index_name = &state.index_name;
+    let client = Client::new(state.client_url, state.client_secret);
 
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
-
-    match client.get_index(index_name).await {
+    match client.get_index(state.index_name).await {
         Ok(index) => {
             let entry_id = path.into_inner().0;
             let c_entry_id = entry_id.clone();
@@ -545,9 +539,8 @@ async fn get_by_id<'a>(
 #[get("/health")]
 async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
-    let c_client = &state.client;
-    let arc_client = &c_client.clone();
-    let client = arc_client.lock().unwrap();
+
+    let client = Client::new(state.client_url, state.client_secret);
 
     let meilie_health = client.is_healthy().await;
 
@@ -559,8 +552,36 @@ async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[get("/stats")]
+async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let client = Client::new(state.client_url, state.client_secret);
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => match index.get_stats().await {
+            Ok(meili_stats) => {
+                let stats = Stats {
+                    number_of_documents: meili_stats.number_of_documents,
+                    is_indexing: meili_stats.is_indexing,
+                };
+
+                Ok(HttpResponse::Ok().json(stats))
+            }
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("No stats for client"),
+            })),
+        },
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
+}
+
 #[actix_web::main]
 async fn main() -> Result<()> {
+    std::env::set_var("RUST_LOG", "info");
+    std::env::set_var("RUST_BACKTRACE", "1");
     // Sets up master key on MeiliSearch and Authentication endpoints
     dotenv::dotenv().ok();
 
@@ -568,6 +589,9 @@ async fn main() -> Result<()> {
     let ms_url_key = "MEILI_BASE_URL";
     let actix_url_key = "ACTIX_SERVER_URL";
     let index_name_key = "INDEX_NAME";
+    let meili_path = "MEILI_PATH";
+
+    let ms_path = env::var(meili_path).unwrap_or("./meilisearch".to_string());
 
     // Run, only if all four variables exist
     match (
@@ -577,7 +601,7 @@ async fn main() -> Result<()> {
         env::var(index_name_key),
     ) {
         (Ok(secret_key), Ok(ms_url), Ok(actix_url), Ok(index_name)) => {
-            match start_meilisearch().await {
+            match start_meilisearch(&ms_path).await {
                 Ok(_) => {}
                 Err(why) => panic!("Could not start MeiliSearch: {:?}", why),
             }
@@ -596,14 +620,13 @@ async fn main() -> Result<()> {
                 Err(why) => panic!("Could not check MeiliSearch: {:?}", why),
             };
 
-            let client = Arc::new(Mutex::new(ms_client));
-
             let state = web::Data::new(AppState {
-                client,
+                client_url: boxed_ms_url,
+                client_secret: boxed_secret_key,
                 index_name: boxed_index_name,
             });
 
-            env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+            env_logger::init();
 
             HttpServer::new(move || {
                 App::new()
@@ -611,6 +634,7 @@ async fn main() -> Result<()> {
                     .wrap(HttpAuthentication::bearer(validator))
                     .wrap(Cors::permissive())
                     .app_data(state.clone())
+                    .service(stats)
                     .service(health)
                     .service(get_by_id)
                     .service(bulk)
