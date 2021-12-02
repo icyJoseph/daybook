@@ -4,16 +4,18 @@ import { AccessTokenError } from "@auth0/nextjs-auth0/dist/utils/errors";
 import auth0 from "utils/auth0";
 
 async function edit(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(401).json({ statusCode: 401 });
+  if (req.method !== "POST")
+    return res.status(400).json({ message: "Bad request" });
 
   try {
     const session = await auth0.getAccessToken(req, res);
 
-    if (!session) return res.status(401).json({ statusCode: 401 });
+    if (!session) return res.status(401).json({ message: "Missing session" });
 
     const { accessToken } = session;
 
-    if (!accessToken) return res.status(401).json({ statusCode: 401 });
+    if (!accessToken)
+      return res.status(401).json({ message: "Missing access token" });
 
     const { next, current } = req.body;
 
@@ -23,25 +25,30 @@ async function edit(req: NextApiRequest, res: NextApiResponse) {
 
     const update = { ...current, ...nextRest };
 
-    const data = await fetch(`${process.env.PROXY_URL}/edit`, {
+    const response = await fetch(`${process.env.PROXY_URL}/edit`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(update)
-    }).then((res) => res.json());
+    });
+
+    if (!response.ok) {
+      return res.status(404).json({ message: "Not found" });
+    }
+
+    const data = await response.json();
 
     return res.json(data);
   } catch (err) {
     if (err instanceof AccessTokenError) {
       if (err.code === "access_token_expired") {
-        res.statusCode = 301;
-        res.redirect("/api/auth/logout").end();
+        res.redirect(307, "/api/auth/logout").end();
         return;
       }
     } else {
-      return res.status(500).json({ statusCode: 500 });
+      return res.status(500).json({ message: "Unexpected Error" });
     }
   }
 }
