@@ -3,7 +3,7 @@ import { AccessTokenError } from "@auth0/nextjs-auth0/dist/utils/errors";
 
 import auth0 from "utils/auth0";
 
-async function bulk(req: NextApiRequest, res: NextApiResponse) {
+async function create(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST")
     return res.status(400).json({ message: "Bad request" });
 
@@ -49,4 +49,4 @@ async function bulk(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default auth0.withApiAuthRequired(bulk);
+export default auth0.withApiAuthRequired(create);
