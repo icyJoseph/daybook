@@ -1,11 +1,6 @@
 import { useEffect } from "react";
-import {
-  FieldValues,
-  useForm,
-  Controller,
-  ControllerRenderProps
-} from "react-hook-form";
-import { Box, CheckBox, FormField, Form, TextInput, TextArea } from "grommet";
+import { FieldValues, useForm } from "react-hook-form";
+import { FormField, Form, TextInput, TextArea } from "grommet";
 
 const empty = {};
 
@@ -18,7 +13,7 @@ export function EntryForm({
   children: React.ReactNode;
   initialValues?: FieldValues;
 }) {
-  const { register, handleSubmit, control, reset } = useForm({
+  const { register, handleSubmit, reset } = useForm({
     defaultValues: initialValues
   });
 
@@ -44,23 +39,6 @@ export function EntryForm({
         />
       </FormField>
 
-      <Box margin={{ vertical: "2rem" }}>
-        <Controller
-          name="privacy"
-          control={control}
-          render={({ field }: { field: ControllerRenderProps }) => {
-            const { value, onChange, ...rest } = field;
-            return (
-              <CheckBox
-                checked={value}
-                label="Private?"
-                {...rest}
-                onChange={(e) => onChange(e.target.checked)}
-              />
-            );
-          }}
-        />
-      </Box>
       {children}
     </Form>
   );
