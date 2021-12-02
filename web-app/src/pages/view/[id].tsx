@@ -2,42 +2,53 @@ import { useEffect, useRef, useState } from "react";
 import { GetServerSidePropsContext } from "next";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { useQuery } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import { Box, Heading } from "grommet";
 import { Hide, Edit, Trash } from "grommet-icons";
 
 import { Entry } from "interfaces/entry";
-import { stegcloak } from "utils/cloak";
 import auth0 from "utils/auth0";
 import { Fab, FabBtn } from "components/Fab";
 import { Markdown } from "components/Markdown";
+import { Result } from "interfaces/result";
 
 const exists = <T,>(val: T | null | undefined): val is T =>
   val === (val ?? !val);
 
-export default function ViewEntry({ initialData }: { initialData: Entry }) {
+export default function ViewEntry({ id }: { id: Entry["id"] }) {
   const router = useRouter();
 
-  const { data } = useQuery<Entry>(
-    ["entry", initialData.id],
-    () =>
-      fetch(`/api/search/entry/${initialData.id}`).then((res) => res.json()),
+  const queryClient = useQueryClient();
+
+  const { data: entry } = useQuery<Entry>(
+    ["entry", id],
+    () => fetch(`/api/search/entry/${id}`).then((res) => res.json()),
     {
-      initialData,
-      staleTime: Infinity
+      staleTime: Infinity,
+      initialData: () => {
+        const matches = queryClient.getQueriesData<Result<Entry>>(["recent"]);
+
+        for (const [_, list] of matches) {
+          const entry = list?.hits.find((entry) => entry.id === id);
+
+          if (entry) return entry;
+        }
+
+        return undefined;
+      }
     }
   );
-
-  const entry = data ?? initialData;
 
   const [revealed, setRevealed] = useState(null);
   const controlRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setRevealed(null);
-  }, [initialData.id, setRevealed]);
+  }, [id, setRevealed]);
 
   const reveal = async () => {
+    if (!entry) return;
+
     if (exists(revealed)) return setRevealed(null);
 
     if (entry.privacy) {
@@ -63,6 +74,8 @@ export default function ViewEntry({ initialData }: { initialData: Entry }) {
       }
     };
   });
+
+  if (!entry) return null;
 
   const description = revealed ?? entry.description;
   const cloak = entry.privacy && !exists(revealed);
@@ -112,25 +125,18 @@ export const getServerSideProps = auth0.withPageAuthRequired({
         context.res
       );
 
+      if (!accessToken)
+        return { redirect: { destination: "/", permanent: false } };
+
       const res = await fetch(`${process.env.PROXY_URL}/entry/${id}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
 
-      if (!res.ok) throw res;
+      if (!res.ok) return { notFound: true };
 
-      const initialData = await res.json();
-
-      if (initialData.privacy) {
-        initialData.description = stegcloak.hide(
-          initialData.description,
-          process.env.STEGCLOAK_SECRET,
-          "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-        );
-      }
-
-      return { props: { initialData } };
+      return { props: { id } };
     } catch (err) {
-      return { notFound: true };
+      return { redirect: { destination: "/", permanent: false } };
     }
   }
 });
