@@ -23,7 +23,7 @@ pub async fn start_meilisearch(path: &str) -> std::io::Result<()> {
 /// Runs a simple check for client health
 /// and presence of `entries` index
 pub async fn check_meilisearch<'a>(client: &Client, index_name: &str) -> Result<()> {
-    let index: Index = match client.get_or_create(index_name).await {
+    let index: Index = match client.get_index(index_name).await {
         Ok(res) => res,
         Err(why) => panic!("{:?}", why),
     };
