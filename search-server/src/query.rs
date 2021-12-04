@@ -11,6 +11,12 @@ pub struct BulkQuery {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct InfiniteQuery {
+    pub offset: usize,
+    pub limit: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FromQuery {
     pub limit: Option<usize>,
     pub offset: Option<usize>,

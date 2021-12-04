@@ -5,8 +5,10 @@ mod query;
 mod start;
 
 use actix_cors::Cors;
+
 use actix_web::{
-    delete, dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse, HttpServer,
+    body, delete, dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse,
+    HttpServer,
 };
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
 use cached::proc_macro::cached;
@@ -218,6 +220,45 @@ async fn later_than<'a>(
     }
 }
 
+#[get("/infinite")]
+async fn infinite<'a>(
+    info: web::Query<InfiniteQuery>,
+    data: web::Data<AppState<'a>>,
+) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let client = Client::new(state.client_url, state.client_secret);
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            let response = index
+                .search()
+                .with_sort(&["created_at:desc"])
+                .with_offset(info.offset)
+                .with_limit(info.limit)
+                .execute()
+                .await
+                .unwrap_or(SearchResults::<Entry> {
+                    hits: vec![],
+                    offset: info.offset,
+                    limit: info.limit,
+                    nb_hits: 0,
+                    exhaustive_nb_hits: false,
+                    facets_distribution: None,
+                    exhaustive_facets_count: None,
+                    processing_time_ms: 0,
+                    query: "".to_string(),
+                });
+
+            Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
+        }
+
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
+}
+
 #[get("/bulk")]
 async fn bulk<'a>(
     info: web::Query<BulkQuery>,
@@ -258,6 +299,26 @@ async fn search<'a>(
         },
         Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
             reason: format!("No client"),
+        })),
+    }
+}
+
+#[post("/config_sortable")]
+async fn config_sortable<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let client = Client::new(state.client_url, state.client_secret);
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            index
+                .set_sortable_attributes(&["created_at"])
+                .await
+                .unwrap();
+            Ok(HttpResponse::NoContent().body(body::Body::Empty))
+        }
+        _ => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+            reason: format!("Failed to create document"),
         })),
     }
 }
@@ -640,6 +701,8 @@ async fn main() -> Result<()> {
                     .service(bulk)
                     .service(search)
                     .service(later_than)
+                    .service(config_sortable)
+                    .service(infinite)
                     .service(create)
                     .service(edit)
                     .service(check_update)
