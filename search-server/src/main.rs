@@ -639,6 +639,19 @@ async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     }
 }
 
+#[post("/create_dump")]
+async fn create_dump<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+    let client = Client::new(state.client_url, state.client_secret);
+
+    match client.create_dump().await {
+        Ok(_) => Ok(HttpResponse::NoContent().body(body::Body::Empty)),
+        Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+            reason: format!("Failed to create dump"),
+        })),
+    }
+}
+
 #[actix_web::main]
 async fn main() -> Result<()> {
     std::env::set_var("RUST_LOG", "info");
@@ -707,6 +720,7 @@ async fn main() -> Result<()> {
                     .service(edit)
                     .service(check_update)
                     .service(delete)
+                    .service(create_dump)
             })
             .bind(boxed_actix_url)?
             .run()

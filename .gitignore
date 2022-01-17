@@ -43,6 +43,7 @@ data.ms
 meilisearch
 .secrets
 .http
+dumps
 
 # Caddyfile
 Caddyfile
