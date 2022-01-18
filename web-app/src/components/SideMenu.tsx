@@ -1,30 +1,17 @@
 import Link from "next/link";
 
-import { Anchor, Sidebar, Nav, Button, Avatar } from "grommet";
-import {
-  Clock,
-  Calendar,
-  // Organization,
-  // Tag,
-  Home,
-  Add,
-  Login,
-  Logout
-} from "grommet-icons";
+import { Anchor, Sidebar, Nav, Avatar } from "grommet";
+import { Home, Add, Login, Logout } from "grommet-icons";
 import { UserProfile } from "@auth0/nextjs-auth0";
-
-type RecentHandler = ({ days, label }: { days: number; label: string }) => void;
 
 export const SideMenu = ({
   gridArea,
   loggedIn,
-  recentHandler,
   avatarUrl
 }: {
   gridArea: string;
   loggedIn: boolean;
   avatarUrl?: UserProfile["picture"];
-  recentHandler: RecentHandler;
 }) => (
   <Sidebar
     gridArea={gridArea}
@@ -44,34 +31,6 @@ export const SideMenu = ({
       <Link href="/create" passHref>
         <Anchor icon={<Add />} />
       </Link>
-
-      <Button
-        hidden={!loggedIn}
-        icon={<Clock />}
-        hoverIndicator
-        onClick={() => recentHandler({ days: 7, label: "week" })}
-      />
-
-      <Button
-        hidden={!loggedIn}
-        icon={<Calendar />}
-        hoverIndicator
-        onClick={() => recentHandler({ days: 31, label: "month" })}
-      />
-
-      {/* <Button
-        hidden={!loggedIn}
-        icon={<Organization />}
-        hoverIndicator
-        onClick={() => recentHandler((x) => !x)}
-      /> */}
-
-      {/* <Button
-        hidden={!loggedIn}
-        icon={<Tag />}
-        hoverIndicator
-        onClick={() => recentHandler((x) => !x)}
-      /> */}
     </Nav>
   </Sidebar>
 );

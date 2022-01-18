@@ -27,12 +27,14 @@ export default function App({ Component, pageProps }: AppProps) {
     <QueryClientProvider client={client}>
       <Grommet theme={theme}>
         <GlobalStyle />
+
         <UserProvider>
           <Application>
             <Component {...pageProps} />
           </Application>
         </UserProvider>
       </Grommet>
+
       <ReactQueryDevtools position="top-right" />
     </QueryClientProvider>
   );

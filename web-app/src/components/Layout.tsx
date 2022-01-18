@@ -1,4 +1,10 @@
-import { FC, useState, useEffect, Fragment } from "react";
+import {
+  type ReactNode,
+  type ReactElement,
+  useState,
+  useEffect,
+  Fragment
+} from "react";
 import { Box, Text } from "grommet";
 import { useUser } from "@auth0/nextjs-auth0";
 
@@ -14,19 +20,23 @@ const NoUser = () => (
   </Box>
 );
 
-const Workspace: FC<{
-  days: number;
-  label: string;
+const Workspace = ({
+  docked,
+  close,
+  sideBarOpen,
+  children
+}: {
   docked: boolean;
   close: () => void;
   sideBarOpen: boolean;
-}> = ({ days, label, docked, close, sideBarOpen, children }) => {
+  children: ReactNode;
+}) => {
   return (
     <Fragment>
       <PollingUpdates />
       <GridWorkspace>
         <GridAside as="section" sideBarOpen={sideBarOpen}>
-          <Recent days={days} label={label} close={close} docked={docked} />
+          <Recent close={close} docked={docked} />
         </GridAside>
 
         <GridMain sideBarOpen={sideBarOpen}>{children}</GridMain>
@@ -35,7 +45,7 @@ const Workspace: FC<{
   );
 };
 
-export const Application: FC<{}> = ({ children }) => {
+export const Application = ({ children }: { children: ReactElement }) => {
   const { user, error, isLoading } = useUser();
   const [open, setOpen] = useState(false);
   const [docked, setDocked] = useState(false);
@@ -61,31 +71,16 @@ export const Application: FC<{}> = ({ children }) => {
   const picture = user?.picture;
   const loggedIn = !isLoading && !!user && !error;
 
-  const [recentDays, setRecentDays] = useState({ days: 7, label: "week" });
-
   const close = () => setOpen(false);
 
   if (isLoading) return null;
 
   return (
     <Grid>
-      <SideMenu
-        loggedIn={loggedIn}
-        gridArea="g-menu"
-        recentHandler={({ days, label }) => {
-          setOpen((x) => (x ? days !== recentDays.days : !x));
-          setRecentDays({ days, label });
-        }}
-        avatarUrl={picture}
-      />
+      <SideMenu loggedIn={loggedIn} gridArea="g-menu" avatarUrl={picture} />
 
       {user ? (
-        <Workspace
-          sideBarOpen={shouldOpen}
-          {...recentDays}
-          close={close}
-          docked={docked}
-        >
+        <Workspace sideBarOpen={shouldOpen} close={close} docked={docked}>
           {children}
         </Workspace>
       ) : (
