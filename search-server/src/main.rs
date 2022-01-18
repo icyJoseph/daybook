@@ -321,7 +321,7 @@ async fn displayed_attributes<'a>(data: web::Data<AppState<'a>>) -> Result<HttpR
     }
 }
 
-#[post("/config_sortable")]
+#[post("/config_filter_and_sort")]
 async fn config_sortable<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
@@ -329,11 +329,19 @@ async fn config_sortable<'a>(data: web::Data<AppState<'a>>) -> Result<HttpRespon
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
-            index
-                .set_sortable_attributes(&["created_at"])
-                .await
-                .unwrap();
-            Ok(HttpResponse::NoContent().body(body::Body::Empty))
+            if let Err(_) = index.set_filterable_attributes(&["created_at"]).await {
+                return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: format!("Failed to configure filterable index"),
+                }));
+            };
+
+            if let Err(_) = index.set_sortable_attributes(&["created_at"]).await {
+                return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: format!("Failed to configure sortable index"),
+                }));
+            }
+
+            return Ok(HttpResponse::NoContent().body(body::Body::Empty));
         }
         _ => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
             reason: format!("Failed to create document"),
