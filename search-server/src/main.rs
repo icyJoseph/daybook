@@ -303,19 +303,100 @@ async fn search<'a>(
     }
 }
 
-#[post("/config_sortable")]
-async fn config_sortable<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+#[post("/displayed_attributes")]
+async fn displayed_attributes<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
     let client = Client::new(state.client_url, state.client_secret);
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
-            index
-                .set_sortable_attributes(&["created_at"])
-                .await
-                .unwrap();
-            Ok(HttpResponse::NoContent().body(body::Body::Empty))
+            let attributes = index.get_displayed_attributes().await.unwrap();
+
+            return Ok(HttpResponse::Ok().json(attributes));
+        }
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
+}
+
+#[post("/sortable_attributes")]
+async fn sortable_attributes<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let client = Client::new(state.client_url, state.client_secret);
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            let attributes = index.get_sortable_attributes().await.unwrap();
+
+            return Ok(HttpResponse::Ok().json(attributes));
+        }
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
+}
+
+#[post("/ranking_rules")]
+async fn ranking_rules<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let client = Client::new(state.client_url, state.client_secret);
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            let rules = index.get_ranking_rules().await.unwrap();
+
+            return Ok(HttpResponse::Ok().json(rules));
+        }
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
+}
+
+#[delete("/reset_ranking_rules")]
+async fn reset_ranking_rules<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let client = Client::new(state.client_url, state.client_secret);
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => match index.reset_ranking_rules().await {
+            Ok(_) => Ok(HttpResponse::NoContent().body(body::Body::Empty)),
+            Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+                reason: format!("Failed to reset ranking rules"),
+            })),
+        },
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
+}
+
+#[post("/config_filter_and_sort")]
+async fn config_filter_and_sort<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let client = Client::new(state.client_url, state.client_secret);
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            if let Err(_) = index.set_filterable_attributes(&["created_at"]).await {
+                return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: format!("Failed to configure filterable index"),
+                }));
+            };
+
+            if let Err(_) = index.set_sortable_attributes(&["created_at"]).await {
+                return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: format!("Failed to configure sortable index"),
+                }));
+            }
+
+            return Ok(HttpResponse::NoContent().body(body::Body::Empty));
         }
         _ => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
             reason: format!("Failed to create document"),
@@ -639,6 +720,19 @@ async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     }
 }
 
+#[post("/create_dump")]
+async fn create_dump<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+    let client = Client::new(state.client_url, state.client_secret);
+
+    match client.create_dump().await {
+        Ok(_) => Ok(HttpResponse::NoContent().body(body::Body::Empty)),
+        Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+            reason: format!("Failed to create dump"),
+        })),
+    }
+}
+
 #[actix_web::main]
 async fn main() -> Result<()> {
     std::env::set_var("RUST_LOG", "info");
@@ -701,12 +795,17 @@ async fn main() -> Result<()> {
                     .service(bulk)
                     .service(search)
                     .service(later_than)
-                    .service(config_sortable)
+                    .service(config_filter_and_sort)
                     .service(infinite)
                     .service(create)
                     .service(edit)
                     .service(check_update)
                     .service(delete)
+                    .service(create_dump)
+                    .service(displayed_attributes)
+                    .service(sortable_attributes)
+                    .service(ranking_rules)
+                    .service(reset_ranking_rules)
             })
             .bind(boxed_actix_url)?
             .run()
