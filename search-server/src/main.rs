@@ -303,6 +303,24 @@ async fn search<'a>(
     }
 }
 
+#[post("/displayed_attributes")]
+async fn displayed_attributes<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let client = Client::new(state.client_url, state.client_secret);
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            let attributes = index.get_displayed_attributes().await.unwrap();
+
+            return Ok(HttpResponse::Ok().json(attributes));
+        }
+        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+            reason: format!("No client"),
+        })),
+    }
+}
+
 #[post("/config_sortable")]
 async fn config_sortable<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
@@ -721,6 +739,7 @@ async fn main() -> Result<()> {
                     .service(check_update)
                     .service(delete)
                     .service(create_dump)
+                    .service(displayed_attributes)
             })
             .bind(boxed_actix_url)?
             .run()
