@@ -34,6 +34,7 @@ const Workspace = ({
   return (
     <Fragment>
       <PollingUpdates />
+
       <GridWorkspace>
         <GridAside as="section" sideBarOpen={sideBarOpen}>
           <Recent close={close} docked={docked} />
