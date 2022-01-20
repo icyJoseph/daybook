@@ -12,15 +12,14 @@ const StickyBox = styled(Box)<BoxExtendedProps>`
   box-shadow: ${({ theme }) => theme.global?.elevation?.light?.small};
 `;
 
-export const Recent = ({
-  days = 7,
-  label = "week",
-  docked = false,
-  close = () => {}
-}) => {
-  const recent = useRecent(days);
+const LoadMore = styled(Button)`
+  margin: 1rem auto;
+`;
 
-  const hits = recent.data?.hits ?? [];
+export const Recent = ({ docked = false, close = () => {} }) => {
+  const { data, hasNextPage, fetchNextPage, isFetched } = useRecent();
+
+  const hits = data?.pages.flatMap((page) => page.hits) ?? [];
 
   return (
     <>
@@ -31,7 +30,7 @@ export const Recent = ({
         justify="between"
       >
         <Heading as="h3" size="small" responsive>
-          Recent {label}
+          Recent
         </Heading>
 
         <Button
@@ -48,6 +47,17 @@ export const Recent = ({
           <EntryCard key={entry.id} {...entry} preview />
         ))}
       </ul>
+
+      <Box>
+        {isFetched && (
+          <LoadMore
+            primary
+            onClick={() => fetchNextPage()}
+            disabled={!hasNextPage}
+            label="More"
+          />
+        )}
+      </Box>
     </>
   );
 };

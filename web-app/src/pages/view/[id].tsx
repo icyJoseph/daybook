@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import Head from "next/head";
 import ErrorPage from "next/error";
-import { useQuery, useQueryClient } from "react-query";
+import { useQuery, useQueryClient, InfiniteData } from "react-query";
 import { Box, Heading } from "grommet";
 import { Edit, Trash } from "grommet-icons";
 
@@ -41,6 +41,20 @@ const fetchViewEntry = async (id: string | string[]) => {
   return response.json();
 };
 
+type Predicate = (entry: Entry) => boolean;
+
+const findEntry = (pages: Result<Entry>[], predicate: Predicate) => {
+  for (const page of pages) {
+    for (const entry of page.hits) {
+      if (predicate(entry)) {
+        return entry;
+      }
+    }
+  }
+
+  return null;
+};
+
 export default function ViewEntry() {
   const router = useRouter();
 
@@ -54,10 +68,15 @@ export default function ViewEntry() {
     {
       staleTime: Infinity,
       initialData: () => {
-        const matches = queryClient.getQueriesData<Result<Entry>>(["recent"]);
+        const matches = queryClient.getQueriesData<
+          InfiniteData<Result<Entry>> | undefined
+        >(["latest"]);
 
         for (const [_, list] of matches) {
-          const entry = list?.hits.find((entry) => entry.id === id);
+          const entry = findEntry(
+            list?.pages ?? [],
+            (entry) => entry.id === id
+          );
 
           if (entry) return entry;
         }
