@@ -1,18 +1,26 @@
-import { useQuery } from "react-query";
+import { useInfiniteQuery } from "react-query";
 
-import { Entry } from "interfaces/entry";
-import { Result } from "interfaces/result";
-import { daysAgoInSecs } from "utils/recent";
+import type { Entry } from "interfaces/entry";
+import type { Result } from "interfaces/result";
 
-export const useRecent = (days = 7) => {
-  return useQuery<Result<Entry>>(["recent", days], async () => {
-    const date = daysAgoInSecs(days);
-    const res = await fetch(`/api/search/later_than?created_at=${date}`);
+export const useRecent = () => {
+  return useInfiniteQuery<Result<Entry>>(
+    "latest",
+    async ({ pageParam = 0 }) => {
+      const res = await fetch(`/api/search/infinite?from=${pageParam}`);
 
-    if (!res.ok) throw res;
+      if (!res.ok) throw res;
 
-    const data = await res.json();
+      const data = await res.json();
 
-    return data;
-  });
+      return data;
+    },
+    {
+      getNextPageParam: (lastPage) => {
+        if (lastPage.offset + lastPage.hits.length >= lastPage.nb_hits) return;
+
+        return Math.floor(lastPage.offset / lastPage.limit) + 1;
+      }
+    }
+  );
 };
