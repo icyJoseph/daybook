@@ -1,10 +1,4 @@
-import {
-  type ReactNode,
-  type ReactElement,
-  useState,
-  useEffect,
-  Fragment
-} from "react";
+import { ReactElement, useState, useEffect, Fragment } from "react";
 import { Box, Text } from "grommet";
 import { useUser } from "@auth0/nextjs-auth0";
 
@@ -29,7 +23,7 @@ const Workspace = ({
   docked: boolean;
   close: () => void;
   sideBarOpen: boolean;
-  children: ReactNode;
+  children: ReactElement;
 }) => {
   return (
     <Fragment>
