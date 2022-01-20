@@ -5,7 +5,7 @@ import type { Result } from "interfaces/result";
 
 export const useRecent = () => {
   return useInfiniteQuery<Result<Entry>>(
-    "latest",
+    "recent",
     async ({ pageParam = 0 }) => {
       const res = await fetch(`/api/search/infinite?from=${pageParam}`);
 

@@ -70,7 +70,7 @@ export default function ViewEntry() {
       initialData: () => {
         const matches = queryClient.getQueriesData<
           InfiniteData<Result<Entry>> | undefined
-        >(["latest"]);
+        >(["recent"]);
 
         for (const [_, list] of matches) {
           const entry = findEntry(
