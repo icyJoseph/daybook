@@ -8,7 +8,7 @@ export const Grid = styled.div`
   display: grid;
   height: 100%;
   grid-template-columns: auto 1fr;
-  grid-template-areas: "g-menu g-workspace ";
+  grid-template-areas: "g-menu g-workspace";
 `;
 
 const asideAnim = css`

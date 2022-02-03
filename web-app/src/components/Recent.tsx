@@ -1,30 +1,10 @@
 import type { MouseEvent } from "react";
 
-import styled from "styled-components";
-import { Box, BoxExtendedProps, Heading } from "grommet";
-import { Button } from "@mantine/core";
+import { Box, Button, Title } from "@mantine/core";
 
 import { EntryCard } from "components/EntryCard";
 import { useRecent } from "hooks/useRecent";
 import { Close } from "grommet-icons";
-
-const StickyBox = styled(Box)<BoxExtendedProps>`
-  position: sticky;
-  top: 0;
-  padding: 0.5rem;
-  box-shadow: ${({ theme }) => theme.global?.elevation?.light?.small};
-  isolation: isolate;
-  z-index: 1;
-
-  & ~ ul {
-    padding-right: 8px;
-    padding-left: 8px;
-  }
-`;
-
-const LoadMore = styled(Button)`
-  margin: 1rem auto;
-`;
 
 export const Recent = ({ docked = false, close = () => {} }) => {
   const { data, hasNextPage, fetchNextPage, isFetched } = useRecent();
@@ -33,15 +13,26 @@ export const Recent = ({ docked = false, close = () => {} }) => {
 
   return (
     <>
-      <StickyBox
-        background="white"
-        direction="row"
-        align="center"
-        justify="between"
+      <Box
+        sx={(theme) => ({
+          position: "sticky",
+          top: 0,
+          padding: "0.5rem",
+          isolation: "isolate",
+          zIndex: 1,
+          background: "white",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          boxShadow: theme.shadows.sm,
+          "& ~ ul": {
+            padding: "0 8px"
+          }
+        })}
       >
-        <Heading as="h3" size="small" responsive>
+        <Title order={3} sx={{ fontSize: "2rem", fontWeight: 300 }}>
           Recent
-        </Heading>
+        </Title>
 
         <Button
           variant="subtle"
@@ -53,7 +44,7 @@ export const Recent = ({ docked = false, close = () => {} }) => {
         >
           <Close />
         </Button>
-      </StickyBox>
+      </Box>
 
       <ul>
         {hits.map((entry) => (
@@ -61,11 +52,17 @@ export const Recent = ({ docked = false, close = () => {} }) => {
         ))}
       </ul>
 
-      <Box>
+      <Box sx={{ textAlign: "center" }}>
         {isFetched && (
-          <LoadMore onClick={() => fetchNextPage()} disabled={!hasNextPage}>
+          <Button
+            my="lg"
+            mx="sm"
+            size="lg"
+            onClick={() => fetchNextPage()}
+            disabled={!hasNextPage}
+          >
             More
-          </LoadMore>
+          </Button>
         )}
       </Box>
     </>

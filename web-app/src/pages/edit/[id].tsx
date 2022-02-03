@@ -3,7 +3,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { FieldValues } from "react-hook-form";
 import { useQueryClient } from "react-query";
-import { Box, Heading, Button } from "grommet";
+import { Box, Button, Title } from "@mantine/core";
 
 import { EntryForm } from "components/EntryForm";
 import { Entry } from "interfaces/entry";
@@ -49,21 +49,28 @@ export default function EditEntry({ entry }: { entry: Entry }) {
         <title>Edit</title>
       </Head>
 
-      <Box as="header" pad="small">
-        <Heading as="h2" margin="0 auto">
+      <Box
+        component="header"
+        sx={(theme) => ({ padding: theme.spacing.sm, display: "flex" })}
+      >
+        <Title
+          order={2}
+          sx={{ margin: "0 auto", fontWeight: 300, fontSize: "2rem" }}
+        >
           Edit an entry
-        </Heading>
+        </Title>
       </Box>
 
       <Box
-        responsive
-        as="main"
-        width={{ max: "65ch" }}
-        margin="12px auto"
-        pad="medium"
+        component="main"
+        sx={(theme) => ({
+          width: "65ch",
+          margin: "12px auto",
+          padding: theme.spacing.md
+        })}
       >
         <EntryForm onSubmit={onSubmit} initialValues={{ ...entry }}>
-          <Button type="submit" primary label="Save" />
+          <Button type="submit">Save</Button>
         </EntryForm>
       </Box>
     </>

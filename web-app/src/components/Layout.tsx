@@ -1,5 +1,5 @@
 import { ReactElement, useState, useEffect, Fragment } from "react";
-import { Box, Text, Button } from "grommet";
+import { Box, Text, Button } from "@mantine/core";
 import { Sidebar } from "grommet-icons";
 
 import { useUser } from "@auth0/nextjs-auth0";
@@ -11,8 +11,17 @@ import { PollingUpdates } from "hooks/usePollingUpdates";
 import { useStats } from "hooks/useStats";
 
 const NoUser = () => (
-  <Box gridArea="g-workspace" flex justify="center" align="center">
-    <Text>Login to start</Text>
+  <Box
+    sx={{
+      gridArea: "g-workspace",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center"
+    }}
+  >
+    <Text component="p" size="lg">
+      Login to start
+    </Text>
   </Box>
 );
 
@@ -76,7 +85,18 @@ export const Application = ({ children }: { children: ReactElement }) => {
     <Grid>
       <SideMenu loggedIn={loggedIn} gridArea="g-menu" avatarUrl={picture}>
         {!docked && (
-          <Button icon={<Sidebar />} onClick={() => setOpen((x) => !x)} />
+          <Button
+            variant="subtle"
+            onClick={() => setOpen((x) => !x)}
+            sx={(theme) => ({
+              ":hover svg": {
+                fill: theme.black,
+                stroke: theme.black
+              }
+            })}
+          >
+            <Sidebar />
+          </Button>
         )}
       </SideMenu>
 

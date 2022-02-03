@@ -1,3 +1,6 @@
+import "styles/reset.css";
+import "styles/nprogress.css";
+
 import { AppProps } from "next/app";
 import Router from "next/router";
 import Head from "next/head";
@@ -6,6 +9,7 @@ import { UserProvider } from "@auth0/nextjs-auth0";
 import { MantineProvider } from "@mantine/core";
 import { Grommet } from "grommet";
 import nprogress from "nprogress";
+
 import { QueryClient, QueryClientProvider } from "react-query";
 import { ReactQueryDevtools } from "react-query/devtools";
 

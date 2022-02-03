@@ -1,32 +1,38 @@
-import {
-  Box,
-  BoxExtendedProps,
-  Button,
-  ButtonExtendedProps,
-  ThemeType
-} from "grommet";
-import styled from "styled-components";
+import type { ComponentPropsWithoutRef } from "react";
+import type { MantineTheme, CSSObject } from "@mantine/styles";
 
-export const FabBtn = styled(Button)<ButtonExtendedProps>``;
+import { Box, Button } from "@mantine/core";
 
-export const Fab = styled(Box)<BoxExtendedProps>`
-  position: absolute;
-  bottom: 2rem;
-  right: 2rem;
-  display: flex;
+export const FabBtn = Button;
 
-  & ${FabBtn} {
-    margin: 0.5rem;
-    align-self: center;
-    flex: 1;
-    border-radius: 50%;
-    background: ${({ theme }: { theme: ThemeType }) =>
-      theme.global?.colors?.["light-3"]};
-    box-shadow: ${({ theme }: { theme: ThemeType }) =>
-      theme.global?.elevation?.light?.small};
+const fabStyle = (theme: MantineTheme): CSSObject => ({
+  position: "absolute",
+  bottom: "2rem",
+  right: "2rem",
+  maxWidth: "100%",
 
-    > svg {
-      vertical-align: middle;
+  display: "flex",
+  flexDirection: "column",
+
+  "& button": {
+    margin: "0.5rem",
+    alignSelf: "center",
+    flex: 1,
+    borderRadius: "50%",
+    background: theme.colors.gray[3],
+    boxShadow: theme.shadows.xs,
+    padding: theme.spacing.xs,
+    ":hover": {
+      backgroundColor: theme.colors.gray[5],
+      boxShadow: theme.shadows.xl
     }
+  },
+
+  "& > svg": {
+    verticalAlign: "middle"
   }
-`;
+});
+
+export const Fab = (props: ComponentPropsWithoutRef<"div">) => (
+  <Box {...props} sx={fabStyle} />
+);

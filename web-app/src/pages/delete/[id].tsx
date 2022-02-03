@@ -4,7 +4,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useQueryClient } from "react-query";
 
-import { Box, Button, Heading, Paragraph, Text } from "grommet";
+import { Box, Button, Title, Text } from "@mantine/core";
 import { Trash } from "grommet-icons";
 
 import { Entry } from "interfaces/entry";
@@ -38,18 +38,31 @@ export default function DeleteEntry({ entry }: { entry: Entry }) {
       <Head>
         <title>Delete</title>
       </Head>
-      <Box width={{ max: "65ch" }} margin="0 auto" pad="small">
-        <Box margin={{ vertical: "16px" }}>
+      <Box
+        component="main"
+        sx={(theme) => ({
+          width: "65ch",
+          margin: "12px auto",
+          padding: theme.spacing.md
+        })}
+      >
+        <Box sx={{ margin: "16px auto" }}>
           <Button
-            primary
-            icon={<Trash />}
-            label={<Text>DELETE</Text>}
+            leftIcon={<Trash color="white" />}
             onClick={deleteHandler}
-          />
+            color="red"
+            fullWidth
+            uppercase
+          >
+            DELETE
+          </Button>
         </Box>
         <Box>
-          <Heading margin={{ bottom: "12px" }}>{entry.title}</Heading>
-          <Paragraph>{entry.description}</Paragraph>
+          <Title order={1} mb="md" sx={{ fontSize: "3rem", fontWeight: 300 }}>
+            {entry.title}
+          </Title>
+
+          <Text component="p">{entry.description}</Text>
         </Box>
       </Box>
     </>

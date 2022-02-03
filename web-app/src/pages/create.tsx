@@ -2,7 +2,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import type { FieldValues } from "react-hook-form";
 import { useQueryClient } from "react-query";
-import { Box, Button, Heading } from "grommet";
+import { Box, Button, Title } from "@mantine/core";
 
 import { EntryForm } from "components/EntryForm";
 import { isUpdate, PollingUpdate } from "hooks/usePollingUpdates";
@@ -45,21 +45,28 @@ export default function Create() {
         <title>Create</title>
       </Head>
 
-      <Box as="header" pad="small">
-        <Heading as="h2" margin="0 auto">
+      <Box
+        component="header"
+        sx={(theme) => ({ padding: theme.spacing.sm, display: "flex" })}
+      >
+        <Title
+          order={2}
+          sx={{ margin: "0 auto", fontWeight: 300, fontSize: "2rem" }}
+        >
           Create a new entry
-        </Heading>
+        </Title>
       </Box>
 
       <Box
-        responsive
-        as="main"
-        width={{ max: "65ch" }}
-        margin="12px auto"
-        pad="medium"
+        component="main"
+        sx={(theme) => ({
+          width: "65ch",
+          margin: "12px auto",
+          padding: theme.spacing.md
+        })}
       >
         <EntryForm onSubmit={onSubmit}>
-          <Button type="submit" primary label="Create" />
+          <Button type="submit"> Create</Button>
         </EntryForm>
       </Box>
     </>
