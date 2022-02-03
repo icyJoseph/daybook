@@ -19,10 +19,16 @@ export const GridWorkspace = styled.section`
   grid-area: g-workspace;
   display: grid;
   grid-template-areas: "g-side g-main";
-  grid-template-columns: minmax(300px, 1fr) 4fr;
+
+  grid-template-columns: 1fr;
+
   overflow-x: hidden;
   overflow-y: hidden;
   position: relative;
+
+  @media (min-width: 620px) {
+    grid-template-columns: minmax(300px, 1fr) 4fr;
+  }
 `;
 
 export const GridAside = styled.aside<{

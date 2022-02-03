@@ -1,16 +1,7 @@
-import {
-  Box,
-  Card,
-  CardBody,
-  CardHeader,
-  CardFooter,
-  Button,
-  Text,
-  Heading
-} from "grommet";
-import { Trash, Edit, Calendar, View } from "grommet-icons";
-import { Entry } from "interfaces/entry";
 import Link from "next/link";
+import { Box, Button, Card, Text, Title, Group } from "@mantine/core";
+import { Trash, Edit, Calendar, View } from "grommet-icons";
+import type { Entry } from "interfaces/entry";
 
 type Mode = {
   preview?: boolean;
@@ -26,35 +17,79 @@ export const EntryCard = ({
   const date = new Date(created_at * 1000).toLocaleDateString();
 
   return (
-    <Card background="light-1" margin="8px 8px 16px">
-      <CardHeader pad="small" flex direction="column">
-        <Heading size="1.5rem" alignSelf="start">
+    <Card
+      shadow="lg"
+      sx={(theme) => ({
+        background: theme.colors.gray[1],
+        display: "flex",
+        flexDirection: "column",
+        maxWidth: "30ch"
+      })}
+      m="8px auto 16px"
+      padding="md"
+    >
+      <Group position="apart" direction="column" mb="lg">
+        <Title
+          order={2}
+          align="left"
+          sx={{ fontSize: "1.5rem", fontWeight: 300 }}
+        >
           {title}
-        </Heading>
+        </Title>
 
-        <Box flex direction="row" justify="center">
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "row",
+            justifyContent: "center"
+          }}
+        >
           <Calendar />
-          <Text margin={{ left: "8px" }}>
+
+          <Text component="p" ml="sm">
             <time dateTime={date}>{date}</time>
           </Text>
         </Box>
-      </CardHeader>
+      </Group>
 
-      {!preview && <CardBody pad="medium">{description}</CardBody>}
+      {!preview && (
+        <Box
+          sx={(theme) => ({
+            padding: theme.spacing.md,
+            background: theme.colors.gray[2]
+          })}
+        >
+          <Text component="p">{description}</Text>
+        </Box>
+      )}
 
-      <CardFooter pad={{ horizontal: "small" }} background="light-2">
-        <Link href={`/view/${id}`} passHref>
-          <Button as="a" icon={<View color="neutral-1" />} hoverIndicator />
-        </Link>
+      <Card.Section sx={(theme) => ({ background: theme.colors.gray[3] })}>
+        <Box
+          sx={(theme) => ({
+            padding: theme.spacing.xs,
+            display: "flex",
+            justifyContent: "space-around"
+          })}
+        >
+          <Link href={`/view/${id}`} passHref>
+            <Button component="a" variant="subtle">
+              <View color="neutral-1" />
+            </Button>
+          </Link>
 
-        <Link href={`/edit/${id}`} passHref>
-          <Button as="a" icon={<Edit color="neutral-3" />} hoverIndicator />
-        </Link>
+          <Link href={`/edit/${id}`} passHref>
+            <Button component="a" variant="subtle">
+              <Edit color="neutral-3" />
+            </Button>
+          </Link>
 
-        <Link href={`/delete/${id}`} passHref>
-          <Button as="a" icon={<Trash color="neutral-4" />} hoverIndicator />
-        </Link>
-      </CardFooter>
+          <Link href={`/delete/${id}`} passHref>
+            <Button component="a" variant="subtle">
+              <Trash color="neutral-4" />
+            </Button>
+          </Link>
+        </Box>
+      </Card.Section>
     </Card>
   );
 };

@@ -1,5 +1,8 @@
+import type { MouseEvent } from "react";
+
 import styled from "styled-components";
-import { Box, BoxExtendedProps, Button, Heading } from "grommet";
+import { Box, BoxExtendedProps, Heading } from "grommet";
+import { Button } from "@mantine/core";
 
 import { EntryCard } from "components/EntryCard";
 import { useRecent } from "hooks/useRecent";
@@ -10,6 +13,13 @@ const StickyBox = styled(Box)<BoxExtendedProps>`
   top: 0;
   padding: 0.5rem;
   box-shadow: ${({ theme }) => theme.global?.elevation?.light?.small};
+  isolation: isolate;
+  z-index: 1;
+
+  & ~ ul {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
 `;
 
 const LoadMore = styled(Button)`
@@ -34,14 +44,17 @@ export const Recent = ({ docked = false, close = () => {} }) => {
         </Heading>
 
         <Button
+          variant="subtle"
           hidden={docked}
-          icon={<Close />}
-          onClick={(e) => {
+          onClick={(e: MouseEvent<HTMLButtonElement>) => {
             close();
             e.currentTarget.blur();
           }}
-        ></Button>
+        >
+          <Close />
+        </Button>
       </StickyBox>
+
       <ul>
         {hits.map((entry) => (
           <EntryCard key={entry.id} {...entry} preview />
@@ -50,12 +63,9 @@ export const Recent = ({ docked = false, close = () => {} }) => {
 
       <Box>
         {isFetched && (
-          <LoadMore
-            primary
-            onClick={() => fetchNextPage()}
-            disabled={!hasNextPage}
-            label="More"
-          />
+          <LoadMore onClick={() => fetchNextPage()} disabled={!hasNextPage}>
+            More
+          </LoadMore>
         )}
       </Box>
     </>
