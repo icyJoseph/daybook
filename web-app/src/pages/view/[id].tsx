@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import ErrorPage from "next/error";
 import { useQuery, useQueryClient, InfiniteData } from "react-query";
-import { Box, Heading } from "grommet";
+import { Box, Title } from "@mantine/core";
 import { Edit, Trash } from "grommet-icons";
 
 import { Entry } from "interfaces/entry";
@@ -98,20 +98,29 @@ export default function ViewEntry() {
       <Head>
         <title>{entry.title}</title>
       </Head>
-      <Box width={{ max: "65ch" }} margin="0 auto" pad="small">
-        <Heading margin={{ bottom: "12px" }}>{entry.title}</Heading>
+
+      <Box
+        component="main"
+        sx={(theme) => ({
+          width: "65ch",
+          margin: "12px auto",
+          padding: theme.spacing.md
+        })}
+      >
+        <Title mb="md" sx={{ fontSize: "3rem", fontWeight: 300 }}>
+          {entry.title}
+        </Title>
+
         <Markdown>{description}</Markdown>
+
         <Fab>
-          <FabBtn
-            hoverIndicator
-            icon={<Edit size="32px" color="neutral-3" />}
-            onClick={() => router.push(`/edit/${entry.id}`)}
-          />
-          <FabBtn
-            hoverIndicator
-            icon={<Trash size="32px" color="neutral-4" />}
-            onClick={() => router.push(`/delete/${entry.id}`)}
-          />
+          <FabBtn onClick={() => router.push(`/edit/${entry.id}`)}>
+            <Edit size="32px" color="neutral-3" />
+          </FabBtn>
+
+          <FabBtn onClick={() => router.push(`/delete/${entry.id}`)}>
+            <Trash size="32px" color="neutral-4" />
+          </FabBtn>
         </Fab>
       </Box>
     </>

@@ -7,6 +7,10 @@ import Document, {
 } from "next/document";
 import { ServerStyleSheet } from "styled-components";
 
+import { ServerStyles, createStylesServer } from "@mantine/next";
+
+const stylesServer = createStylesServer();
+
 export default class MyDocument extends Document {
   static async getInitialProps(ctx: DocumentContext) {
     const sheet = new ServerStyleSheet();
@@ -25,7 +29,10 @@ export default class MyDocument extends Document {
         styles: (
           <>
             {initialProps.styles}
+
             {sheet.getStyleElement()}
+
+            <ServerStyles html={initialProps.html} server={stylesServer} />
           </>
         )
       };

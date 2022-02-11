@@ -1,22 +1,34 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
-import styled from "styled-components";
+import {
+  ComponentPropsWithoutRef,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { useRouter } from "next/router";
-
-import { Button, Box, Text, TextInput, Form, FormField } from "grommet";
+import { Box, Button, Text, TextInput } from "@mantine/core";
 
 import { Entry } from "interfaces/entry";
 import { EntryCard } from "components/EntryCard";
 import { Result } from "interfaces/result";
 import { useStats } from "hooks/useStats";
 
-const SearchForm = styled(Form)`
-  position: sticky;
-  top: 0;
-  padding: 1rem 2rem;
-
-  background: white;
-  box-shadow: ${({ theme }) => theme.global?.elevation?.light?.small};
-`;
+const SearchForm = (props: ComponentPropsWithoutRef<"form">) => (
+  <Box
+    component="form"
+    {...props}
+    sx={(theme) => ({
+      position: "sticky",
+      top: 0,
+      padding: "1rem 2rem",
+      background: "white",
+      boxShadow: theme.shadows.sm,
+      zIndex: 2,
+      isolation: "isolate"
+    })}
+  />
+);
 
 const defaultResult: Result<Entry> = Object.freeze({
   hits: [],
@@ -36,6 +48,10 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data } = useStats();
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     if (q) {
@@ -89,28 +105,51 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
     }
   };
 
+  const numberOfDocuments = data?.number_of_documents ?? 0;
+  const label = useMemo(
+    () => (
+      <Text component="span" sx={{ fontWeight: 300 }}>
+        Ready to search across{" "}
+        <Text component="span" color="blue" size="lg">
+          {numberOfDocuments}
+        </Text>{" "}
+        documents
+      </Text>
+    ),
+    [data]
+  );
+
   return (
     <>
       <SearchForm onSubmit={onSubmit}>
-        <FormField contentProps={{ width: { max: "45ch" }, margin: "0 auto" }}>
-          <TextInput placeholder="What are you looking for?" ref={inputRef} />
-        </FormField>
+        <Box>
+          <TextInput
+            label={label}
+            placeholder="What are you looking for?"
+            ref={inputRef}
+            size="md"
+          />
 
-        <Box align="center" gap="medium">
-          <Button type="submit" primary label="Search" />
-
-          {data && (
-            <Text color="dark-3" size="small">
-              {searchTime === null
-                ? "Ready to search across "
-                : "Searched through "}
-              {data?.number_of_documents} documents
-            </Text>
-          )}
+          <Button type="submit" mt="md">
+            Search
+          </Button>
 
           {searchTime !== null && (
-            <Text color="dark-3" size="small">
-              Search time: {searchTime} ms - {hits.length} results
+            <Text
+              component="p"
+              color="dark-3"
+              size="md"
+              mt="md"
+              sx={{ fontWeight: 300 }}
+            >
+              Search time:{" "}
+              <Text component="span" color="blue">
+                {searchTime} ms
+              </Text>{" "}
+              /{" "}
+              <Text component="span" color="blue">
+                {hits.length} results
+              </Text>
             </Text>
           )}
         </Box>
