@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
 
-import { Box, Button, Title } from "@mantine/core";
+import { Box, Button, List, Title } from "@mantine/core";
 
 import { EntryCard } from "components/EntryCard";
 import { useRecent } from "hooks/useRecent";
@@ -26,8 +26,8 @@ export const Recent = ({ docked = false, close = () => {} }) => {
           alignItems: "center",
           boxShadow: theme.shadows.sm,
           "& ~ ul": {
-            padding: "0 8px"
-          }
+            padding: "0 8px",
+          },
         })}
       >
         <Title order={3} sx={{ fontSize: "2rem", fontWeight: 300 }}>
@@ -46,11 +46,11 @@ export const Recent = ({ docked = false, close = () => {} }) => {
         </Button>
       </Box>
 
-      <ul>
+      <List spacing="xl" my="xl">
         {hits.map((entry) => (
-          <EntryCard key={entry.id} {...entry} preview />
+          <EntryCard key={entry.id} {...entry} />
         ))}
-      </ul>
+      </List>
 
       <Box sx={{ textAlign: "center" }}>
         {isFetched && (

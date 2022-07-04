@@ -4,14 +4,14 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
 } from "react";
 import { useRouter } from "next/router";
-import { Box, Button, Text, TextInput } from "@mantine/core";
+import { Box, Button, List, Text, TextInput } from "@mantine/core";
 
-import { Entry } from "interfaces/entry";
+import type { Entry } from "interfaces/entry";
 import { EntryCard } from "components/EntryCard";
-import { Result } from "interfaces/result";
+import type { Result } from "interfaces/result";
 import { useStats } from "hooks/useStats";
 
 const SearchForm = (props: ComponentPropsWithoutRef<"form">) => (
@@ -25,7 +25,7 @@ const SearchForm = (props: ComponentPropsWithoutRef<"form">) => (
       background: "white",
       boxShadow: theme.shadows.sm,
       zIndex: 2,
-      isolation: "isolate"
+      isolation: "isolate",
     })}
   />
 );
@@ -36,12 +36,12 @@ const defaultResult: Result<Entry> = Object.freeze({
   offset: 0,
   limit: 0,
   nb_hits: 0,
-  exhaustive_nb_hits: false
+  exhaustive_nb_hits: false,
 });
 
 export const Search = ({ q = "" }: { q?: string | string[] }) => {
   const [{ hits, processing_time_ms: searchTime }, setResults] = useState({
-    ...defaultResult
+    ...defaultResult,
   });
 
   const router = useRouter();
@@ -106,6 +106,7 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
   };
 
   const numberOfDocuments = data?.number_of_documents ?? 0;
+
   const label = useMemo(
     () => (
       <Text component="span" sx={{ fontWeight: 300 }}>
@@ -156,11 +157,11 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
       </SearchForm>
 
       {hits.length > 0 && (
-        <ul>
+        <List spacing="xl" size="sm" withPadding py="xl" my="xl">
           {hits.map((item) => (
             <EntryCard key={item.id} {...item} preview />
           ))}
-        </ul>
+        </List>
       )}
     </>
   );

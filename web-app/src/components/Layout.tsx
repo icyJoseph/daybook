@@ -16,7 +16,7 @@ const NoUser = () => (
       gridArea: "g-workspace",
       display: "flex",
       justifyContent: "center",
-      alignItems: "center"
+      alignItems: "center",
     }}
   >
     <Text component="p" size="lg">
@@ -29,7 +29,7 @@ const Workspace = ({
   docked,
   close,
   sideBarOpen,
-  children
+  children,
 }: {
   docked: boolean;
   close: () => void;
@@ -61,7 +61,7 @@ export const Application = ({ children }: { children: ReactElement }) => {
   useStats(!!user);
 
   useEffect(() => {
-    const query = window.matchMedia("(min-width: 630px)");
+    const query = window.matchMedia("(min-width: 1024px)");
 
     const handler = () => {
       setDocked(query.matches);
@@ -91,8 +91,8 @@ export const Application = ({ children }: { children: ReactElement }) => {
             sx={(theme) => ({
               ":hover svg": {
                 fill: theme.black,
-                stroke: theme.black
-              }
+                stroke: theme.black,
+              },
             })}
           >
             <Sidebar />

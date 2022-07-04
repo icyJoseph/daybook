@@ -26,15 +26,17 @@ export const GridWorkspace = styled.section`
   overflow-y: hidden;
   position: relative;
 
-  @media (min-width: 620px) {
-    grid-template-columns: minmax(300px, 1fr) 4fr;
+  @media (min-width: 1024px) {
+    grid-template-columns: 414px 1fr;
   }
 `;
 
-export const GridAside = styled.aside<{
+type GridAsideProps = {
   sideBarOpen: boolean;
   theme: ThemeType;
-}>`
+};
+
+export const GridAside = styled.aside<GridAsideProps>`
   position: absolute;
   overflow-y: scroll;
   transition: all 0.5s;
@@ -43,33 +45,30 @@ export const GridAside = styled.aside<{
   z-index: 10;
   height: 100%;
   width: 100%;
+
   background: rgba(0, 0, 0, 0.5);
 
-  @media (min-width: 620px) {
+  @media (min-width: 1024px) {
     height: unset;
     width: unset;
     position: initial;
     transform: unset;
     grid-column: unset;
     background-color: unset;
-
     grid-area: g-side;
   }
 `;
 
-export const GridMain = styled.main<{ sideBarOpen: boolean }>`
+type GridMainProps = { sideBarOpen: boolean };
+
+export const GridMain = styled.main<GridMainProps>`
   overflow-y: auto;
   grid-column: span 2;
   transition: all 0.5s;
 
-  @media (min-width: 620px) {
+  @media (min-width: 1024px) {
     transform: unset;
     grid-column: unset;
     grid-area: g-main;
-  }
-
-  > ul {
-    max-width: 45ch;
-    margin: 16px auto;
   }
 `;

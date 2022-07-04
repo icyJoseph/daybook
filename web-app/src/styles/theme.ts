@@ -6,7 +6,7 @@ export const theme: ThemeType = {
     font: {
       family: "Fira Sans",
       size: "18px",
-      height: "20px"
+      height: "20px",
     },
     colors: {
       brand: "#E84855",
@@ -17,12 +17,12 @@ export const theme: ThemeType = {
       "neutral-1": "#62BBC1",
       "neutral-2": "#403F4C",
       "neutral-3": "#3185FC",
-      "neutral-4": "#D9726C"
-    }
+      "neutral-4": "#D9726C",
+    },
   },
   heading: {
     color: "neutral-2",
-    weight: 200
+    weight: 200,
   },
   grommet: {
     extend() {
@@ -31,6 +31,6 @@ export const theme: ThemeType = {
         height: 100%;
         flex-flow: column;
       `;
-    }
-  }
+    },
+  },
 };

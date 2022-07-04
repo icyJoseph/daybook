@@ -11,9 +11,9 @@ import { Markdown } from "components/Markdown";
 import { Result } from "interfaces/result";
 
 class ViewError extends Error {
-  statusCode: number;
+  statusCode?: number;
 
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode?: number) {
     // Pass remaining arguments (including vendor specific ones) to parent constructor
     super(message);
 
@@ -23,7 +23,11 @@ class ViewError extends Error {
   }
 }
 
-const fetchViewEntry = async (id: string | string[]) => {
+const fetchViewEntry = async (id: string | string[] | undefined) => {
+  if (typeof id === "undefined") {
+    throw new ViewError("Id was undefined");
+  }
+
   if (Array.isArray(id)) {
     throw new ViewError("Invalid Id", 401);
   }
@@ -82,12 +86,14 @@ export default function ViewEntry() {
         }
 
         return undefined;
-      }
+      },
     }
   );
 
   if (error)
-    return <ErrorPage statusCode={error.statusCode} title={error.message} />;
+    return (
+      <ErrorPage statusCode={error.statusCode || 400} title={error.message} />
+    );
 
   if (!entry) return null;
 
@@ -102,9 +108,9 @@ export default function ViewEntry() {
       <Box
         component="main"
         sx={(theme) => ({
-          width: "65ch",
+          maxWidth: "120ch",
           margin: "12px auto",
-          padding: theme.spacing.md
+          padding: theme.spacing.md,
         })}
       >
         <Title mb="md" sx={{ fontSize: "3rem", fontWeight: 300 }}>
