@@ -157,7 +157,7 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
       </SearchForm>
 
       {hits.length > 0 && (
-        <List spacing="xl" size="sm" withPadding py="xl" my="xl">
+        <List spacing="xl" size="sm" withPadding py="xl" my="xl" pr="xl">
           {hits.map((item) => (
             <EntryCard key={item.id} {...item} preview />
           ))}
