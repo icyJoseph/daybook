@@ -1,5 +1,7 @@
 import { ReactElement, useState, useEffect, Fragment } from "react";
-import { Box, Text } from "grommet";
+import { Box, Text, Button } from "grommet";
+import { Sidebar } from "grommet-icons";
+
 import { useUser } from "@auth0/nextjs-auth0";
 
 import { Grid, GridAside, GridMain, GridWorkspace } from "components/Grid";
@@ -72,7 +74,11 @@ export const Application = ({ children }: { children: ReactElement }) => {
 
   return (
     <Grid>
-      <SideMenu loggedIn={loggedIn} gridArea="g-menu" avatarUrl={picture} />
+      <SideMenu loggedIn={loggedIn} gridArea="g-menu" avatarUrl={picture}>
+        {!docked && (
+          <Button icon={<Sidebar />} onClick={() => setOpen((x) => !x)} />
+        )}
+      </SideMenu>
 
       {user ? (
         <Workspace sideBarOpen={shouldOpen} close={close} docked={docked}>

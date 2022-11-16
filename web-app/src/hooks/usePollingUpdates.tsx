@@ -47,7 +47,7 @@ const Poll = ({ update }: { update: PollingUpdate }) => {
           default:
             return;
         }
-      }
+      },
     }
   );
 
