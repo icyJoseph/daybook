@@ -82,7 +82,24 @@ export default function ViewEntry() {
         }
 
         return undefined;
-      }
+      },
+      onSuccess: (data) => {
+        queryClient.setQueryData<InfiniteData<Result<Entry>>>(
+          "recent",
+          (recent) => {
+            const pages =
+              recent?.pages?.map((page) => ({
+                ...page,
+                hits: page.hits.map((hit) => (hit.id === data.id ? data : hit)),
+              })) ?? [];
+
+            return {
+              pages,
+              pageParams: recent?.pageParams ?? [],
+            };
+          }
+        );
+      },
     }
   );
 

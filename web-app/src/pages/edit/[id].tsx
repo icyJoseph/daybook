@@ -24,19 +24,19 @@ export default function EditEntry({ entry }: { entry: Entry }) {
       const updateInfo = await fetch("/api/search/edit", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           current: entry,
-          next: { ...entry, title, description, privacy }
-        })
+          next: { ...entry, title, description, privacy },
+        }),
       }).then((res) => res.json());
 
       if (isUpdate(updateInfo)) {
-        queryClient.setQueryData<PollingUpdate[]>("updates", (prev = []) => [
-          ...prev,
-          { ...updateInfo, key: ["entry", entry.id] }
-        ]);
+        queryClient.setQueriesData<PollingUpdate[]>(
+          ["updates"],
+          (prev = []) => [...prev, { ...updateInfo, key: ["entry", entry.id] }]
+        );
       }
 
       router.push(`/view/${entry.id}`);
@@ -83,7 +83,7 @@ export const getServerSideProps = auth0.withPageAuthRequired({
       );
 
       const res = await fetch(`${process.env.PROXY_URL}/entry/${id}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
 
       if (!res.ok) throw res;
@@ -94,5 +94,5 @@ export const getServerSideProps = auth0.withPageAuthRequired({
     } catch (err) {
       return { notFound: true };
     }
-  }
+  },
 });
