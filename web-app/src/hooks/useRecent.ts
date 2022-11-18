@@ -17,10 +17,12 @@ export const useRecent = () => {
     },
     {
       getNextPageParam: (lastPage) => {
+        if (!lastPage) return;
+
         if (lastPage.offset + lastPage.hits.length >= lastPage.nb_hits) return;
 
         return Math.floor(lastPage.offset / lastPage.limit) + 1;
-      }
+      },
     }
   );
 };
