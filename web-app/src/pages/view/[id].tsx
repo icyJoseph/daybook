@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import ErrorPage from "next/error";
 import { useQuery, useQueryClient, InfiniteData } from "react-query";
-import { Box, Title } from "@mantine/core";
+import { Title } from "@mantine/core";
 import { Edit, Trash } from "grommet-icons";
 
 import { Entry } from "interfaces/entry";
@@ -105,14 +105,7 @@ export default function ViewEntry() {
         <title>{entry.title}</title>
       </Head>
 
-      <Box
-        component="main"
-        sx={(theme) => ({
-          maxWidth: "120ch",
-          margin: "12px auto",
-          padding: theme.spacing.md,
-        })}
-      >
+      <>
         <Title mb="md" sx={{ fontSize: "3rem", fontWeight: 300 }}>
           {entry.title}
         </Title>
@@ -120,15 +113,41 @@ export default function ViewEntry() {
         <Markdown>{description}</Markdown>
 
         <Fab>
-          <FabBtn onClick={() => router.push(`/edit/${entry.id}`)}>
+          <FabBtn
+            variant="subtle"
+            onClick={() => router.push(`/edit/${entry.id}`)}
+            sx={(theme) => ({
+              "& svg": {
+                fill: theme.colors.blue[4],
+                stroke: theme.colors.blue[4],
+              },
+              ":hover svg": {
+                fill: theme.colors.blue[6],
+                stroke: theme.colors.blue[6],
+              },
+            })}
+          >
             <Edit size="32px" color="neutral-3" />
           </FabBtn>
 
-          <FabBtn onClick={() => router.push(`/delete/${entry.id}`)}>
+          <FabBtn
+            variant="subtle"
+            onClick={() => router.push(`/delete/${entry.id}`)}
+            sx={(theme) => ({
+              "& svg": {
+                fill: theme.colors.red[4],
+                stroke: theme.colors.red[4],
+              },
+              ":hover svg": {
+                fill: theme.colors.red[6],
+                stroke: theme.colors.red[6],
+              },
+            })}
+          >
             <Trash size="32px" color="neutral-4" />
           </FabBtn>
         </Fab>
-      </Box>
+      </>
     </>
   );
 }

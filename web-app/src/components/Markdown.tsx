@@ -2,9 +2,9 @@ import type { ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import gfm from "remark-gfm";
+import rehype from "rehype-raw";
 
 import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
-import { MdStyle } from "components/MdStyle";
 import type {
   CodeProps,
   HeadingProps,
@@ -31,10 +31,11 @@ const TitleAdapter = (props: HeadingProps) => {
 };
 
 const TextAdapter = ({ node, ...rest }: ParagraphProps) => {
-  return <Text {...rest} size="md" />;
+  return <Text {...rest} size="md" component="p" />;
 };
 
 const AnchorAdapter = ({ node, ...props }: AnchorProps) => {
+  // TODO: potentially handle relative links
   return <Anchor {...props} />;
 };
 
@@ -89,9 +90,11 @@ const components = {
 };
 
 export const Markdown = ({ children }: { children: string }) => (
-  <MdStyle>
-    <ReactMarkdown remarkPlugins={[gfm]} components={components}>
-      {children}
-    </ReactMarkdown>
-  </MdStyle>
+  <ReactMarkdown
+    remarkPlugins={[gfm]}
+    rehypePlugins={[rehype]}
+    components={components}
+  >
+    {children}
+  </ReactMarkdown>
 );

@@ -13,6 +13,7 @@ import type { Entry } from "interfaces/entry";
 import { EntryCard } from "components/EntryCard";
 import type { Result } from "interfaces/result";
 import { useStats } from "hooks/useStats";
+import { useRecent } from "hooks/useRecent";
 
 const SearchForm = (props: ComponentPropsWithoutRef<"form">) => (
   <Box
@@ -24,7 +25,7 @@ const SearchForm = (props: ComponentPropsWithoutRef<"form">) => (
       padding: "1rem 2rem",
       background: "white",
       boxShadow: theme.shadows.sm,
-      zIndex: 2,
+      zIndex: 1,
       isolation: "isolate",
     })}
   />
@@ -39,7 +40,11 @@ const defaultResult: Result<Entry> = Object.freeze({
   exhaustive_nb_hits: false,
 });
 
-export const Search = ({ q = "" }: { q?: string | string[] }) => {
+export const Search = ({ query = "" }: { query?: string | string[] }) => {
+  const { data: recentData } = useRecent();
+
+  const recent = recentData?.pages.flatMap((page) => page.hits) ?? [];
+
   const [{ hits, processing_time_ms: searchTime }, setResults] = useState({
     ...defaultResult,
   });
@@ -54,8 +59,8 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
   }, []);
 
   useEffect(() => {
-    if (q) {
-      const urlQuery = Array.isArray(q) ? q.join(" ") : q;
+    if (query) {
+      const urlQuery = Array.isArray(query) ? query.join(" ") : query;
 
       if (inputRef.current) {
         inputRef.current.value = urlQuery;
@@ -74,13 +79,13 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
           }
         })
         .then((data) => setResults(data))
-        .catch(() => setResults({ ...defaultResult }));
+        .catch(() => setResults(defaultResult));
 
       return () => controller.abort();
     } else {
-      setResults({ ...defaultResult });
+      setResults(defaultResult);
     }
-  }, [q]);
+  }, [query]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -97,12 +102,17 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
 
         setResults(data);
       } catch (err) {
-        setResults({ ...defaultResult });
+        setResults(defaultResult);
       }
     } else {
       router.push("/");
-      setResults({ ...defaultResult });
+      setResults(defaultResult);
     }
+  };
+
+  const onReset = () => {
+    router.push("/");
+    setResults(defaultResult);
   };
 
   const numberOfDocuments = data?.number_of_documents ?? 0;
@@ -120,9 +130,11 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
     [data]
   );
 
+  const list = hits.length > 0 ? hits : recent;
+
   return (
     <>
-      <SearchForm onSubmit={onSubmit}>
+      <SearchForm onSubmit={onSubmit} onReset={onReset}>
         <Box>
           <TextInput
             label={label}
@@ -131,9 +143,15 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
             size="md"
           />
 
-          <Button type="submit" mt="md">
-            Search
-          </Button>
+          <Box mt="md">
+            <Button type="submit" mr="md">
+              Search
+            </Button>
+
+            <Button type="reset" variant="outline">
+              Clear
+            </Button>
+          </Box>
 
           {searchTime !== null && (
             <Text
@@ -156,13 +174,23 @@ export const Search = ({ q = "" }: { q?: string | string[] }) => {
         </Box>
       </SearchForm>
 
-      {hits.length > 0 && (
-        <List spacing="xl" size="sm" withPadding py="xl" my="xl" pr="xl">
-          {hits.map((item) => (
-            <EntryCard key={item.id} {...item} preview />
-          ))}
-        </List>
+      {list === recent && (
+        <Text
+          component="p"
+          color="dark-3"
+          size="md"
+          mt="md"
+          sx={{ fontWeight: 300 }}
+        >
+          Showing recently added
+        </Text>
       )}
+
+      <List spacing="xl" size="sm" withPadding py="xl" my="xl" pr="xl">
+        {list.map((item) => (
+          <EntryCard key={item.id} {...item} preview />
+        ))}
+      </List>
     </>
   );
 };

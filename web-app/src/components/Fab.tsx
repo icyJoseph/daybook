@@ -6,9 +6,9 @@ import { Box, Button } from "@mantine/core";
 export const FabBtn = Button;
 
 const fabStyle = (theme: MantineTheme): CSSObject => ({
-  position: "absolute",
+  position: "fixed",
   bottom: "2rem",
-  right: "2rem",
+  right: "5rem",
   maxWidth: "100%",
 
   display: "flex",
@@ -24,13 +24,13 @@ const fabStyle = (theme: MantineTheme): CSSObject => ({
     padding: theme.spacing.xs,
     ":hover": {
       backgroundColor: theme.colors.gray[5],
-      boxShadow: theme.shadows.xl
-    }
+      boxShadow: theme.shadows.xl,
+    },
   },
 
   "& > svg": {
-    verticalAlign: "middle"
-  }
+    verticalAlign: "middle",
+  },
 });
 
 export const Fab = (props: ComponentPropsWithoutRef<"div">) => (

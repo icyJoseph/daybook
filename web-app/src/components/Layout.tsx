@@ -1,112 +1,223 @@
-import { ReactElement, useState, useEffect, Fragment } from "react";
-import { Box, Text, Button } from "@mantine/core";
-import { Sidebar } from "grommet-icons";
+import React, { type ReactNode, useState, Fragment } from "react";
+import { Box, Avatar, Button, AppShell } from "@mantine/core";
 
 import { useUser } from "@auth0/nextjs-auth0";
+import Link from "next/link";
 
-import { Grid, GridAside, GridMain, GridWorkspace } from "components/Grid";
+import { Home, Add, Login, Logout, Close, Menu, Time } from "grommet-icons";
 import { Recent } from "components/Recent";
 import { SideMenu } from "components/SideMenu";
-import { PollingUpdates } from "hooks/usePollingUpdates";
 import { useStats } from "hooks/useStats";
+import { useRouter } from "next/router";
+import { NoUser } from "components/NoUser";
+import { Workspace } from "./Workspace";
 
-const NoUser = () => (
-  <Box
-    sx={{
-      gridArea: "g-workspace",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-    }}
-  >
-    <Text component="p" size="lg">
-      Login to start
-    </Text>
-  </Box>
-);
+const appShellStyles = {
+  root: { height: "100%" },
+  main: { height: "100%", overflowX: "scroll", paddingTop: 0 },
+  body: { height: "100%" },
+} as const;
 
-const Workspace = ({
-  docked,
-  close,
-  sideBarOpen,
-  children,
+const UserAvatar = ({ avatar }: { avatar?: string | null }) =>
+  avatar ? (
+    <Avatar
+      mx="auto"
+      src={avatar}
+      alt="User Avatar"
+      radius="xl"
+      sx={{ placeSelf: "center" }}
+    />
+  ) : (
+    <div />
+  );
+
+const LoginOptions = ({
+  status,
+  loggedIn,
 }: {
-  docked: boolean;
-  close: () => void;
-  sideBarOpen: boolean;
-  children: ReactElement;
+  status: "pending" | "resolved";
+  loggedIn: boolean;
 }) => {
+  if (status === "pending") return <Time />;
+
+  return loggedIn ? <Logout /> : <Login />;
+};
+
+const Navigation = ({
+  loggedIn,
+  home,
+  create,
+  sideMenu,
+}: {
+  loggedIn: boolean;
+  home: ReactNode;
+  create: ReactNode;
+  sideMenu: ReactNode;
+}) => {
+  const router = useRouter();
+
+  const homeQuery = router.pathname === "/" ? { q: router.query.q } : {};
+
   return (
-    <Fragment>
-      <PollingUpdates />
+    <Box sx={{ display: "flex", flexDirection: "column" }}>
+      {loggedIn ? (
+        <Fragment>
+          <Box
+            sx={{
+              display: "block",
+              "@media (min-width: 769px)": {
+                display: "none",
+              },
+            }}
+          >
+            {sideMenu}
+          </Box>
 
-      <GridWorkspace>
-        <GridAside as="section" sideBarOpen={sideBarOpen}>
-          <Recent close={close} docked={docked} />
-        </GridAside>
+          <Link href={{ pathname: "/", query: homeQuery }} passHref>
+            {home}
+          </Link>
 
-        <GridMain sideBarOpen={sideBarOpen}>{children}</GridMain>
-      </GridWorkspace>
-    </Fragment>
+          <Link href="/create" passHref>
+            {create}
+          </Link>
+        </Fragment>
+      ) : null}
+    </Box>
   );
 };
 
-export const Application = ({ children }: { children: ReactElement }) => {
+const Aside = ({ children }: { children: ReactNode | ReactNode[] }) => (
+  <Box
+    component="aside"
+    sx={(theme) => ({
+      display: "grid",
+      gridTemplateRows: "5rem 1fr 1fr",
+      backgroundColor: theme.colors.gray[9],
+    })}
+  >
+    {children}
+  </Box>
+);
+
+export const Application = ({ children }: { children: ReactNode }) => {
   const { user, error, isLoading } = useUser();
-  const [open, setOpen] = useState(false);
-  const [docked, setDocked] = useState(false);
+  const [sideMenuIsOpen, setSideMenu] = useState(false);
 
   // this seeds any other query made for stats, for example
   // the query done in Search
   useStats(!!user);
 
-  useEffect(() => {
-    const query = window.matchMedia("(min-width: 1024px)");
-
-    const handler = () => {
-      setDocked(query.matches);
-    };
-
-    handler();
-    query.addEventListener("change", handler);
-
-    return () => query.removeEventListener("change", handler);
-  }, [setDocked]);
-
-  const shouldOpen = docked || open;
   const picture = user?.picture;
   const loggedIn = !isLoading && !!user && !error;
 
-  const close = () => setOpen(false);
-
-  if (isLoading) return null;
+  const close = () => setSideMenu(false);
+  const toggleSideMenu = () => setSideMenu((x) => !x);
 
   return (
-    <Grid>
-      <SideMenu loggedIn={loggedIn} gridArea="g-menu" avatarUrl={picture}>
-        {!docked && (
-          <Button
-            variant="subtle"
-            onClick={() => setOpen((x) => !x)}
-            sx={(theme) => ({
-              ":hover svg": {
-                fill: theme.black,
-                stroke: theme.black,
-              },
-            })}
-          >
-            <Sidebar />
-          </Button>
-        )}
-      </SideMenu>
+    <AppShell
+      styles={appShellStyles}
+      fixed
+      navbar={
+        <SideMenu
+          open={sideMenuIsOpen}
+          recent={user ? <Recent onClose={close} /> : null}
+        />
+      }
+      aside={
+        <Aside>
+          <UserAvatar avatar={picture} />
 
-      {user ? (
-        <Workspace sideBarOpen={shouldOpen} close={close} docked={docked}>
-          {children}
-        </Workspace>
-      ) : (
-        <NoUser />
-      )}
-    </Grid>
+          <Navigation
+            loggedIn={loggedIn}
+            home={
+              <Button
+                component="a"
+                variant="subtle"
+                mb="lg"
+                sx={(theme) => ({
+                  "& svg": {
+                    fill: theme.colors.blue[2],
+                    stroke: theme.colors.blue[2],
+                  },
+                  ":hover svg": {
+                    fill: theme.black,
+                    stroke: theme.black,
+                  },
+                })}
+              >
+                <Home />
+              </Button>
+            }
+            create={
+              <Button
+                component="a"
+                variant="subtle"
+                mb="lg"
+                sx={(theme) => ({
+                  "& svg": {
+                    fill: theme.colors.blue[2],
+                    stroke: theme.colors.blue[2],
+                  },
+                  ":hover svg": {
+                    fill: theme.black,
+                    stroke: theme.black,
+                  },
+                })}
+              >
+                <Add />
+              </Button>
+            }
+            sideMenu={
+              <Button
+                onClick={toggleSideMenu}
+                variant="subtle"
+                mb="lg"
+                sx={(theme) => ({
+                  "& svg": {
+                    fill: theme.colors.blue[2],
+                    stroke: theme.colors.blue[2],
+                  },
+                  ":hover svg": {
+                    fill: theme.black,
+                    stroke: theme.black,
+                  },
+                })}
+              >
+                {sideMenuIsOpen ? <Close /> : <Menu />}
+              </Button>
+            }
+          />
+
+          <Box
+            sx={{ placeSelf: "end", flexDirection: "column", display: "flex" }}
+            pb="xl"
+          >
+            <Link href={`/api/auth/${loggedIn ? "logout" : "login"}`} passHref>
+              <Button
+                component="a"
+                variant="subtle"
+                sx={(theme) => ({
+                  "& svg": {
+                    fill: theme.colors.blue[2],
+                    stroke: theme.colors.blue[2],
+                  },
+                  ":hover svg": {
+                    fill: theme.black,
+                    stroke: theme.black,
+                  },
+                })}
+              >
+                <LoginOptions
+                  status={isLoading ? "pending" : "resolved"}
+                  loggedIn={loggedIn}
+                />
+              </Button>
+            </Link>
+          </Box>
+        </Aside>
+      }
+    >
+      {user ? <Workspace>{children}</Workspace> : <NoUser />}
+    </AppShell>
   );
 };

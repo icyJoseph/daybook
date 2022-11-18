@@ -7,7 +7,6 @@ import Head from "next/head";
 
 import { UserProvider } from "@auth0/nextjs-auth0";
 import { MantineProvider } from "@mantine/core";
-import { Grommet } from "grommet";
 import nprogress from "nprogress";
 
 import { QueryClient, QueryClientProvider } from "react-query";
@@ -16,11 +15,10 @@ import { ReactQueryDevtools } from "react-query/devtools";
 import { Application } from "components/Layout";
 
 import { useConstant } from "hooks/useConstant";
-import { theme } from "styles/theme";
 import { GlobalStyle } from "styles/global";
 
 nprogress.configure({
-  showSpinner: false
+  showSpinner: false,
 });
 
 Router.events.on("routeChangeStart", () => nprogress.start());
@@ -41,17 +39,15 @@ export default function App({ Component, pageProps }: AppProps) {
 
       <MantineProvider withGlobalStyles withNormalizeCSS>
         <QueryClientProvider client={client}>
-          <Grommet theme={theme}>
-            <GlobalStyle />
+          <GlobalStyle />
 
-            <UserProvider>
-              <Application>
-                <Component {...pageProps} />
-              </Application>
-            </UserProvider>
-          </Grommet>
+          <UserProvider>
+            <Application>
+              <Component {...pageProps} />
+            </Application>
+          </UserProvider>
 
-          <ReactQueryDevtools position="top-right" />
+          <ReactQueryDevtools position="bottom-left" />
         </QueryClientProvider>
       </MantineProvider>
     </>

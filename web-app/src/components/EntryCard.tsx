@@ -5,9 +5,7 @@ import type { Entry } from "interfaces/entry";
 export const EntryCard = ({
   id,
   title,
-  description,
   created_at,
-  preview = false,
 }: Entry & { preview?: boolean }) => {
   const date = new Date(created_at * 1000).toLocaleDateString();
 
