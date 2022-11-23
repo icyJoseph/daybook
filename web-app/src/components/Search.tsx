@@ -90,6 +90,7 @@ export const Search = ({ query = "" }: { query?: string | string[] }) => {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const query = inputRef.current?.value?.trim();
+
     if (query) {
       router.push({ pathname: "/", query: { q: query } });
       try {

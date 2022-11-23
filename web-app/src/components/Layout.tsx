@@ -1,145 +1,25 @@
-import React, { type ReactNode, useState, Fragment } from "react";
-import { Box, Avatar, AppShell, ActionIcon } from "@mantine/core";
+import React, { type ReactNode, useState } from "react";
+import { Box, AppShell, ActionIcon } from "@mantine/core";
 
 import { useUser } from "@auth0/nextjs-auth0";
 import Link from "next/link";
+import { IconHome, IconPlus, IconLogout, IconX, IconMenu } from "@tabler/icons";
 
-import {
-  IconHome,
-  IconPlus,
-  IconLogout,
-  IconX,
-  IconMenu,
-  IconPencil,
-  IconTrash,
-} from "@tabler/icons";
 import { Recent } from "components/Recent";
 import { SideMenu } from "components/SideMenu";
-import { useStats } from "hooks/useStats";
-import { useRouter } from "next/router";
 import { NoUser } from "components/NoUser";
-import { Workspace } from "./Workspace";
+import { Workspace } from "components/Workspace";
+import { UserAvatar } from "components/UserAvatar";
+import { Navigation } from "components/Navigation";
+import { Aside } from "components/Aside";
+
+import { useStats } from "hooks/useStats";
 
 const appShellStyles = {
   root: { height: "100%" },
   main: { height: "100%", overflowX: "scroll", paddingTop: 0 },
   body: { height: "100%" },
 } as const;
-
-const UserAvatar = ({ avatar }: { avatar?: string | null }) =>
-  avatar ? (
-    <Avatar
-      mx="auto"
-      src={avatar}
-      alt="User Avatar"
-      radius="xl"
-      sx={{ placeSelf: "center" }}
-    />
-  ) : (
-    <div />
-  );
-
-const Navigation = ({
-  loggedIn,
-  home,
-  create,
-  sideMenu,
-}: {
-  loggedIn: boolean;
-  home: ReactNode;
-  create: ReactNode;
-  sideMenu: ReactNode;
-}) => {
-  const router = useRouter();
-
-  const homeQuery = router.pathname === "/" ? { q: router.query.q } : {};
-
-  const { id } = router.query;
-
-  return (
-    <Box sx={{ display: "flex", flexDirection: "column" }}>
-      {loggedIn ? (
-        <Fragment>
-          <Box
-            sx={{
-              display: "block",
-              "@media (min-width: 769px)": {
-                display: "none",
-              },
-            }}
-          >
-            {sideMenu}
-          </Box>
-
-          <Link href={{ pathname: "/", query: homeQuery }} passHref>
-            {home}
-          </Link>
-
-          <Link href="/create" passHref>
-            {create}
-          </Link>
-
-          {typeof id === "string" && (
-            <>
-              <Link href={`/edit/${id}`} passHref>
-                <ActionIcon
-                  variant="transparent"
-                  component="a"
-                  aria-label="Navigate to edit entry"
-                  mx="auto"
-                  mb="lg"
-                  sx={(theme) => ({
-                    "& svg": {
-                      stroke: theme.colors.blue[2],
-                    },
-                    ":hover svg": {
-                      stroke: theme.colors.blue[4],
-                    },
-                  })}
-                >
-                  <IconPencil />
-                </ActionIcon>
-              </Link>
-              <Link href={`/delete/${id}`} passHref>
-                <ActionIcon
-                  variant="transparent"
-                  component="a"
-                  aria-label="Navigate to delete entry"
-                  mx="auto"
-                  mb="lg"
-                  sx={(theme) => ({
-                    "& svg": {
-                      stroke: theme.colors.red[4],
-                    },
-                    ":hover svg": {
-                      stroke: theme.colors.red[6],
-                    },
-                  })}
-                >
-                  <IconTrash />
-                </ActionIcon>
-              </Link>
-            </>
-          )}
-        </Fragment>
-      ) : null}
-    </Box>
-  );
-};
-
-const Aside = ({ children }: { children: ReactNode | ReactNode[] }) => (
-  <Box
-    component="aside"
-    sx={(theme) => ({
-      display: "grid",
-      gridTemplateRows: "5rem 1fr 1fr",
-      backgroundColor: theme.colors.gray[9],
-      flexBasis: "3rem",
-    })}
-  >
-    {children}
-  </Box>
-);
 
 export const Application = ({ children }: { children: ReactNode }) => {
   const { user, error, isLoading } = useUser();
