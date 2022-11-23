@@ -7,7 +7,6 @@ import Link from "next/link";
 import {
   IconHome,
   IconPlus,
-  IconLogin,
   IconLogout,
   IconX,
   IconMenu,
@@ -39,10 +38,6 @@ const UserAvatar = ({ avatar }: { avatar?: string | null }) =>
   ) : (
     <div />
   );
-
-const LoginOptions = ({ loggedIn }: { loggedIn: boolean }) => {
-  return loggedIn ? <IconLogout /> : <IconLogin />;
-};
 
 const Navigation = ({
   loggedIn,
@@ -165,10 +160,14 @@ export const Application = ({ children }: { children: ReactNode }) => {
       styles={appShellStyles}
       fixed
       navbar={
-        <SideMenu
-          open={sideMenuIsOpen}
-          recent={user ? <Recent onClose={close} /> : null}
-        />
+        loggedIn ? (
+          <SideMenu
+            open={sideMenuIsOpen}
+            recent={user ? <Recent onClose={close} /> : null}
+          />
+        ) : (
+          <></>
+        )
       }
       aside={
         <Aside>
@@ -241,19 +240,16 @@ export const Application = ({ children }: { children: ReactNode }) => {
           <Box
             sx={{
               placeSelf: "end",
-              flexDirection: "column",
-              display: isLoading ? "none" : "flex",
+              display: loggedIn ? "block" : "none",
             }}
             mx="auto"
             pb="xl"
           >
-            <Link href={`/api/auth/${loggedIn ? "logout" : "login"}`} passHref>
+            <Link href="/api/auth/logout" passHref>
               <ActionIcon
                 component="a"
                 variant="transparent"
-                aria-label={
-                  loggedIn ? "Logout from session" : "Initiate session"
-                }
+                aria-label="Logout from session"
                 mx="auto"
                 mb="lg"
                 sx={(theme) => ({
@@ -265,7 +261,7 @@ export const Application = ({ children }: { children: ReactNode }) => {
                   },
                 })}
               >
-                <LoginOptions loggedIn={loggedIn} />
+                <IconLogout />
               </ActionIcon>
             </Link>
           </Box>
