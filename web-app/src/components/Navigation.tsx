@@ -48,44 +48,42 @@ export const Navigation = ({
 
           {typeof id === "string" && (
             <>
-              <Link href={`/edit/${id}`} passHref>
-                <ActionIcon
-                  variant="transparent"
-                  component="a"
-                  aria-label="Navigate to edit entry"
-                  mx="auto"
-                  mb="lg"
-                  sx={(theme) => ({
-                    "& svg": {
-                      stroke: theme.colors.blue[2],
-                    },
-                    ":hover svg": {
-                      stroke: theme.colors.blue[4],
-                    },
-                  })}
-                >
-                  <IconPencil />
-                </ActionIcon>
-              </Link>
-              <Link href={`/delete/${id}`} passHref>
-                <ActionIcon
-                  variant="transparent"
-                  component="a"
-                  aria-label="Navigate to delete entry"
-                  mx="auto"
-                  mb="lg"
-                  sx={(theme) => ({
-                    "& svg": {
-                      stroke: theme.colors.red[4],
-                    },
-                    ":hover svg": {
-                      stroke: theme.colors.red[6],
-                    },
-                  })}
-                >
-                  <IconTrash />
-                </ActionIcon>
-              </Link>
+              <ActionIcon
+                component={Link}
+                href={`/edit/${id}`}
+                variant="transparent"
+                aria-label="Navigate to edit entry"
+                mx="auto"
+                mb="lg"
+                sx={(theme) => ({
+                  "& svg": {
+                    stroke: theme.colors.blue[2],
+                  },
+                  ":hover svg": {
+                    stroke: theme.colors.blue[4],
+                  },
+                })}
+              >
+                <IconPencil />
+              </ActionIcon>
+              <ActionIcon
+                component={Link}
+                href={`/delete/${id}`}
+                variant="transparent"
+                aria-label="Navigate to delete entry"
+                mx="auto"
+                mb="lg"
+                sx={(theme) => ({
+                  "& svg": {
+                    stroke: theme.colors.red[4],
+                  },
+                  ":hover svg": {
+                    stroke: theme.colors.red[6],
+                  },
+                })}
+              >
+                <IconTrash />
+              </ActionIcon>
             </>
           )}
         </Fragment>

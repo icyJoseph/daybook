@@ -17,24 +17,23 @@ export const NoUser = () => (
       You need to login to start using this service
     </Text>
 
-    <Link href="/api/auth/login" passHref>
-      <Button
-        component="a"
-        aria-label="Initiate session"
-        mx="auto"
-        mb="lg"
-        sx={(theme) => ({
-          "& svg": {
-            stroke: theme.colors.blue[2],
-          },
-          ":hover svg": {
-            stroke: theme.colors.blue[4],
-          },
-        })}
-        leftIcon={<IconLogin />}
-      >
-        Login
-      </Button>
-    </Link>
+    <Button
+      component={Link}
+      href="/api/auth/login"
+      aria-label="Initiate session"
+      mx="auto"
+      mb="lg"
+      sx={(theme) => ({
+        "& svg": {
+          stroke: theme.colors.blue[2],
+        },
+        ":hover svg": {
+          stroke: theme.colors.blue[4],
+        },
+      })}
+      leftIcon={<IconLogin />}
+    >
+      Login
+    </Button>
   </Box>
 );

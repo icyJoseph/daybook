@@ -57,7 +57,6 @@ export const Application = ({ children }: { children: ReactNode }) => {
             loggedIn={loggedIn}
             home={
               <ActionIcon
-                component="a"
                 variant="transparent"
                 aria-label="Navigate to landing page"
                 mx="auto"
@@ -76,7 +75,6 @@ export const Application = ({ children }: { children: ReactNode }) => {
             }
             create={
               <ActionIcon
-                component="a"
                 variant="transparent"
                 aria-label="Create a new entry"
                 mx="auto"
@@ -125,25 +123,24 @@ export const Application = ({ children }: { children: ReactNode }) => {
             mx="auto"
             pb="xl"
           >
-            <Link href="/api/auth/logout" passHref>
-              <ActionIcon
-                component="a"
-                variant="transparent"
-                aria-label="Logout from session"
-                mx="auto"
-                mb="lg"
-                sx={(theme) => ({
-                  "& svg": {
-                    stroke: theme.colors.blue[2],
-                  },
-                  ":hover svg": {
-                    stroke: theme.colors.blue[4],
-                  },
-                })}
-              >
-                <IconLogout />
-              </ActionIcon>
-            </Link>
+            <ActionIcon
+              component={Link}
+              href="/api/auth/logout"
+              variant="transparent"
+              aria-label="Logout from session"
+              mx="auto"
+              mb="lg"
+              sx={(theme) => ({
+                "& svg": {
+                  stroke: theme.colors.blue[2],
+                },
+                ":hover svg": {
+                  stroke: theme.colors.blue[4],
+                },
+              })}
+            >
+              <IconLogout />
+            </ActionIcon>
           </Box>
         </Aside>
       }

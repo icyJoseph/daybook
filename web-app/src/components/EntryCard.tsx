@@ -34,23 +34,17 @@ export const EntryCard = ({
       </Box>
 
       <Box mt="sm" sx={{ display: "flex", gap: "1rem" }}>
-        <Link href={`/view/${id}`} passHref>
-          <Button component="a" variant="subtle">
-            View
-          </Button>
-        </Link>
+        <Button component={Link} variant="subtle" href={`/view/${id}`}>
+          View
+        </Button>
 
-        <Link href={`/edit/${id}`} passHref>
-          <Button component="a" variant="subtle">
-            Edit
-          </Button>
-        </Link>
+        <Button component={Link} variant="subtle" href={`/edit/${id}`}>
+          Edit
+        </Button>
 
-        <Link href={`/delete/${id}`} passHref>
-          <Button component="a" variant="subtle">
-            Delete
-          </Button>
-        </Link>
+        <Button component={Link} variant="subtle" href={`/delete/${id}`}>
+          Delete
+        </Button>
       </Box>
     </ListItem>
   );
