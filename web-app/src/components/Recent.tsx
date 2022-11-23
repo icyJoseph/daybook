@@ -1,7 +1,7 @@
 import { Box, Button, List, Navbar, ScrollArea, Title } from "@mantine/core";
 
 import { EntryCard } from "components/EntryCard";
-import { Close } from "grommet-icons";
+import { IconX } from "@tabler/icons";
 import { useRecent } from "hooks/useRecent";
 
 export const Recent = ({ onClose }: { onClose: () => void }) => {
@@ -39,7 +39,7 @@ export const Recent = ({ onClose }: { onClose: () => void }) => {
               },
             }}
           >
-            <Close onClick={onClose} />
+            <IconX onClick={onClose} />
           </Button>
         </Box>
       </Navbar.Section>

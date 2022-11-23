@@ -3,10 +3,8 @@ import Head from "next/head";
 import ErrorPage from "next/error";
 import { useQuery, useQueryClient, InfiniteData } from "react-query";
 import { Title } from "@mantine/core";
-import { Edit, Trash } from "grommet-icons";
 
 import { Entry } from "interfaces/entry";
-import { Fab, FabBtn } from "components/Fab";
 import { Markdown } from "components/Markdown";
 import { Result } from "interfaces/result";
 
@@ -128,42 +126,6 @@ export default function ViewEntry() {
         </Title>
 
         <Markdown>{description}</Markdown>
-
-        <Fab>
-          <FabBtn
-            variant="subtle"
-            onClick={() => router.push(`/edit/${entry.id}`)}
-            sx={(theme) => ({
-              "& svg": {
-                fill: theme.colors.blue[4],
-                stroke: theme.colors.blue[4],
-              },
-              ":hover svg": {
-                fill: theme.colors.blue[6],
-                stroke: theme.colors.blue[6],
-              },
-            })}
-          >
-            <Edit size="32px" color="neutral-3" />
-          </FabBtn>
-
-          <FabBtn
-            variant="subtle"
-            onClick={() => router.push(`/delete/${entry.id}`)}
-            sx={(theme) => ({
-              "& svg": {
-                fill: theme.colors.red[4],
-                stroke: theme.colors.red[4],
-              },
-              ":hover svg": {
-                fill: theme.colors.red[6],
-                stroke: theme.colors.red[6],
-              },
-            })}
-          >
-            <Trash size="32px" color="neutral-4" />
-          </FabBtn>
-        </Fab>
       </>
     </>
   );

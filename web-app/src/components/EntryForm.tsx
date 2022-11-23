@@ -1,20 +1,24 @@
-import { useEffect } from "react";
+import { ComponentPropsWithoutRef, useEffect } from "react";
 import { FieldValues, useForm } from "react-hook-form";
-import { FormField, Form, TextInput, TextArea } from "grommet";
+import { Textarea, TextInput, Box } from "@mantine/core";
 
 const empty = {};
+
+const Fieldset = (props: ComponentPropsWithoutRef<"fieldset">) => (
+  <Box component="fieldset" {...props} mb="lg" />
+);
 
 export function EntryForm({
   onSubmit,
   children,
-  initialValues = empty
+  initialValues = empty,
 }: {
   onSubmit: (data: FieldValues) => Promise<void>;
   children: React.ReactNode;
   initialValues?: FieldValues;
 }) {
   const { register, handleSubmit, reset } = useForm({
-    defaultValues: initialValues
+    defaultValues: initialValues,
   });
 
   useEffect(() => {
@@ -22,24 +26,26 @@ export function EntryForm({
   }, [initialValues]);
 
   return (
-    <Form onSubmit={handleSubmit(onSubmit)}>
-      <FormField>
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <Fieldset>
         <TextInput
           placeholder="title"
           autoComplete="off"
           {...register("title", { required: true })}
         />
-      </FormField>
-      <FormField>
-        <TextArea
+      </Fieldset>
+
+      <Fieldset>
+        <Textarea
           rows={5}
-          resize="vertical"
+          autosize
+          minRows={4}
           placeholder="description"
           {...register("description", { required: true })}
         />
-      </FormField>
+      </Fieldset>
 
       {children}
-    </Form>
+    </form>
   );
 }

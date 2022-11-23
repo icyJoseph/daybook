@@ -1,10 +1,20 @@
 import React, { type ReactNode, useState, Fragment } from "react";
-import { Box, Avatar, Button, AppShell } from "@mantine/core";
+import { Box, Avatar, AppShell, ActionIcon } from "@mantine/core";
 
 import { useUser } from "@auth0/nextjs-auth0";
 import Link from "next/link";
 
-import { Home, Add, Login, Logout, Close, Menu, Time } from "grommet-icons";
+import {
+  IconHome,
+  IconPlus,
+  IconLogin,
+  IconLogout,
+  IconX,
+  IconMenu,
+  IconHourglass,
+  IconPencil,
+  IconTrash,
+} from "@tabler/icons";
 import { Recent } from "components/Recent";
 import { SideMenu } from "components/SideMenu";
 import { useStats } from "hooks/useStats";
@@ -38,9 +48,9 @@ const LoginOptions = ({
   status: "pending" | "resolved";
   loggedIn: boolean;
 }) => {
-  if (status === "pending") return <Time />;
+  if (status === "pending") return <IconHourglass />;
 
-  return loggedIn ? <Logout /> : <Login />;
+  return loggedIn ? <IconLogout /> : <IconLogin />;
 };
 
 const Navigation = ({
@@ -57,6 +67,8 @@ const Navigation = ({
   const router = useRouter();
 
   const homeQuery = router.pathname === "/" ? { q: router.query.q } : {};
+
+  const { id } = router.query;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column" }}>
@@ -80,6 +92,47 @@ const Navigation = ({
           <Link href="/create" passHref>
             {create}
           </Link>
+
+          {typeof id === "string" && (
+            <>
+              <Link href={`/edit/${id}`} passHref>
+                <ActionIcon
+                  variant="transparent"
+                  component="a"
+                  mx="auto"
+                  mb="lg"
+                  sx={(theme) => ({
+                    "& svg": {
+                      stroke: theme.colors.blue[2],
+                    },
+                    ":hover svg": {
+                      stroke: theme.colors.blue[4],
+                    },
+                  })}
+                >
+                  <IconPencil />
+                </ActionIcon>
+              </Link>
+              <Link href={`/delete/${id}`} passHref>
+                <ActionIcon
+                  variant="transparent"
+                  component="a"
+                  mx="auto"
+                  mb="lg"
+                  sx={(theme) => ({
+                    "& svg": {
+                      stroke: theme.colors.red[4],
+                    },
+                    ":hover svg": {
+                      stroke: theme.colors.red[6],
+                    },
+                  })}
+                >
+                  <IconTrash />
+                </ActionIcon>
+              </Link>
+            </>
+          )}
         </Fragment>
       ) : null}
     </Box>
@@ -93,6 +146,7 @@ const Aside = ({ children }: { children: ReactNode | ReactNode[] }) => (
       display: "grid",
       gridTemplateRows: "5rem 1fr 1fr",
       backgroundColor: theme.colors.gray[9],
+      flexBasis: "3rem",
     })}
   >
     {children}
@@ -130,80 +184,83 @@ export const Application = ({ children }: { children: ReactNode }) => {
           <Navigation
             loggedIn={loggedIn}
             home={
-              <Button
+              <ActionIcon
                 component="a"
-                variant="subtle"
+                variant="transparent"
+                mx="auto"
                 mb="lg"
                 sx={(theme) => ({
                   "& svg": {
-                    fill: theme.colors.blue[2],
                     stroke: theme.colors.blue[2],
                   },
                   ":hover svg": {
-                    fill: theme.black,
-                    stroke: theme.black,
+                    stroke: theme.colors.blue[4],
                   },
                 })}
               >
-                <Home />
-              </Button>
+                <IconHome />
+              </ActionIcon>
             }
             create={
-              <Button
+              <ActionIcon
                 component="a"
-                variant="subtle"
+                variant="transparent"
+                mx="auto"
                 mb="lg"
                 sx={(theme) => ({
                   "& svg": {
-                    fill: theme.colors.blue[2],
                     stroke: theme.colors.blue[2],
                   },
                   ":hover svg": {
-                    fill: theme.black,
-                    stroke: theme.black,
+                    stroke: theme.colors.blue[4],
                   },
                 })}
               >
-                <Add />
-              </Button>
+                <IconPlus />
+              </ActionIcon>
             }
             sideMenu={
-              <Button
+              <ActionIcon
                 onClick={toggleSideMenu}
-                variant="subtle"
+                component="a"
+                variant="transparent"
+                mx="auto"
                 mb="lg"
                 sx={(theme) => ({
                   "& svg": {
-                    fill: theme.colors.blue[2],
                     stroke: theme.colors.blue[2],
                   },
                   ":hover svg": {
-                    fill: theme.black,
-                    stroke: theme.black,
+                    stroke: theme.colors.blue[4],
                   },
                 })}
               >
-                {sideMenuIsOpen ? <Close /> : <Menu />}
-              </Button>
+                {sideMenuIsOpen ? <IconX /> : <IconMenu />}
+              </ActionIcon>
             }
           />
 
           <Box
-            sx={{ placeSelf: "end", flexDirection: "column", display: "flex" }}
+            sx={{
+              placeSelf: "end",
+              flexDirection: "column",
+              display: "flex",
+            }}
+            mx="auto"
             pb="xl"
           >
             <Link href={`/api/auth/${loggedIn ? "logout" : "login"}`} passHref>
-              <Button
+              <ActionIcon
                 component="a"
-                variant="subtle"
+                variant="transparent"
+                mx="auto"
+                mb="lg"
                 sx={(theme) => ({
                   "& svg": {
-                    fill: theme.colors.blue[2],
                     stroke: theme.colors.blue[2],
                   },
                   ":hover svg": {
-                    fill: theme.black,
-                    stroke: theme.black,
+                    stroke: theme.colors.blue[4],
                   },
                 })}
               >
@@ -211,7 +268,7 @@ export const Application = ({ children }: { children: ReactNode }) => {
                   status={isLoading ? "pending" : "resolved"}
                   loggedIn={loggedIn}
                 />
-              </Button>
+              </ActionIcon>
             </Link>
           </Box>
         </Aside>

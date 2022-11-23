@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import { useQueryClient } from "react-query";
 
 import { Box, Button, Title, Text } from "@mantine/core";
-import { Trash } from "grommet-icons";
+import { IconTrash } from "@tabler/icons";
 
 import { Entry } from "interfaces/entry";
 import auth0 from "utils/auth0";
@@ -19,13 +19,13 @@ export default function DeleteEntry({ entry }: { entry: Entry }) {
 
     if (proceed) {
       const updateInfo = await fetch(`/api/search/delete/${entry.id}`, {
-        method: "DELETE"
+        method: "DELETE",
       }).then((res) => res.json());
 
       if (isUpdate(updateInfo)) {
         queryClient.setQueryData<PollingUpdate[]>("updates", (prev = []) => [
           ...prev,
-          { ...updateInfo, key: "recent" }
+          { ...updateInfo, key: "recent" },
         ]);
       }
 
@@ -43,12 +43,12 @@ export default function DeleteEntry({ entry }: { entry: Entry }) {
         sx={(theme) => ({
           width: "65ch",
           margin: "12px auto",
-          padding: theme.spacing.md
+          padding: theme.spacing.md,
         })}
       >
         <Box sx={{ margin: "16px auto" }}>
           <Button
-            leftIcon={<Trash color="white" />}
+            leftIcon={<IconTrash color="white" />}
             onClick={deleteHandler}
             color="red"
             fullWidth
@@ -82,7 +82,7 @@ export const getServerSideProps = auth0.withPageAuthRequired({
       );
 
       const res = await fetch(`${process.env.PROXY_URL}/entry/${id}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
 
       if (!res.ok) throw res;
@@ -93,5 +93,5 @@ export const getServerSideProps = auth0.withPageAuthRequired({
     } catch (err) {
       return { notFound: true };
     }
-  }
+  },
 });
