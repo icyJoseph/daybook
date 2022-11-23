@@ -11,7 +11,6 @@ import {
   IconLogout,
   IconX,
   IconMenu,
-  IconHourglass,
   IconPencil,
   IconTrash,
 } from "@tabler/icons";
@@ -41,15 +40,7 @@ const UserAvatar = ({ avatar }: { avatar?: string | null }) =>
     <div />
   );
 
-const LoginOptions = ({
-  status,
-  loggedIn,
-}: {
-  status: "pending" | "resolved";
-  loggedIn: boolean;
-}) => {
-  if (status === "pending") return <IconHourglass />;
-
+const LoginOptions = ({ loggedIn }: { loggedIn: boolean }) => {
   return loggedIn ? <IconLogout /> : <IconLogin />;
 };
 
@@ -99,6 +90,7 @@ const Navigation = ({
                 <ActionIcon
                   variant="transparent"
                   component="a"
+                  aria-label="Navigate to edit entry"
                   mx="auto"
                   mb="lg"
                   sx={(theme) => ({
@@ -117,6 +109,7 @@ const Navigation = ({
                 <ActionIcon
                   variant="transparent"
                   component="a"
+                  aria-label="Navigate to delete entry"
                   mx="auto"
                   mb="lg"
                   sx={(theme) => ({
@@ -187,6 +180,7 @@ export const Application = ({ children }: { children: ReactNode }) => {
               <ActionIcon
                 component="a"
                 variant="transparent"
+                aria-label="Navigate to landing page"
                 mx="auto"
                 mb="lg"
                 sx={(theme) => ({
@@ -205,6 +199,7 @@ export const Application = ({ children }: { children: ReactNode }) => {
               <ActionIcon
                 component="a"
                 variant="transparent"
+                aria-label="Create a new entry"
                 mx="auto"
                 mb="lg"
                 sx={(theme) => ({
@@ -223,6 +218,9 @@ export const Application = ({ children }: { children: ReactNode }) => {
               <ActionIcon
                 onClick={toggleSideMenu}
                 component="a"
+                aria-label={
+                  sideMenuIsOpen ? "Close side menu" : "Open side menu"
+                }
                 variant="transparent"
                 mx="auto"
                 mb="lg"
@@ -244,7 +242,7 @@ export const Application = ({ children }: { children: ReactNode }) => {
             sx={{
               placeSelf: "end",
               flexDirection: "column",
-              display: "flex",
+              display: isLoading ? "none" : "flex",
             }}
             mx="auto"
             pb="xl"
@@ -253,6 +251,9 @@ export const Application = ({ children }: { children: ReactNode }) => {
               <ActionIcon
                 component="a"
                 variant="transparent"
+                aria-label={
+                  loggedIn ? "Logout from session" : "Initiate session"
+                }
                 mx="auto"
                 mb="lg"
                 sx={(theme) => ({
@@ -264,10 +265,7 @@ export const Application = ({ children }: { children: ReactNode }) => {
                   },
                 })}
               >
-                <LoginOptions
-                  status={isLoading ? "pending" : "resolved"}
-                  loggedIn={loggedIn}
-                />
+                <LoginOptions loggedIn={loggedIn} />
               </ActionIcon>
             </Link>
           </Box>
