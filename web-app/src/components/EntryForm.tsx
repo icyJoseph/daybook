@@ -1,4 +1,4 @@
-import { ComponentPropsWithoutRef, useEffect } from "react";
+import { ComponentPropsWithoutRef, useEffect, useRef } from "react";
 import { FieldValues, useForm } from "react-hook-form";
 import { Textarea, TextInput, Box } from "@mantine/core";
 
@@ -21,9 +21,17 @@ export function EntryForm({
     defaultValues: initialValues,
   });
 
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const { ref, ...rest } = register("title", { required: true });
+
   useEffect(() => {
     reset(initialValues);
   }, [initialValues]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
@@ -31,7 +39,11 @@ export function EntryForm({
         <TextInput
           placeholder="title"
           autoComplete="off"
-          {...register("title", { required: true })}
+          {...rest}
+          ref={(elem) => {
+            ref(elem);
+            inputRef.current = elem;
+          }}
         />
       </Fieldset>
 
