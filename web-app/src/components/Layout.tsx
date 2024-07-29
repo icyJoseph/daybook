@@ -1,92 +1,151 @@
-import { ReactElement, useState, useEffect, Fragment } from "react";
-import { Box, Text, Button } from "grommet";
-import { Sidebar } from "grommet-icons";
+import React, { type ReactNode, useState } from "react";
+import { Box, AppShell, ActionIcon } from "@mantine/core";
 
 import { useUser } from "@auth0/nextjs-auth0";
+import Link from "next/link";
+import { IconHome, IconPlus, IconLogout, IconX, IconMenu } from "@tabler/icons";
 
-import { Grid, GridAside, GridMain, GridWorkspace } from "components/Grid";
 import { Recent } from "components/Recent";
 import { SideMenu } from "components/SideMenu";
-import { PollingUpdates } from "hooks/usePollingUpdates";
+import { NoUser } from "components/NoUser";
+import { Workspace } from "components/Workspace";
+import { UserAvatar } from "components/UserAvatar";
+import { Navigation } from "components/Navigation";
+import { Aside } from "components/Aside";
+
 import { useStats } from "hooks/useStats";
 
-const NoUser = () => (
-  <Box gridArea="g-workspace" flex justify="center" align="center">
-    <Text>Login to start</Text>
-  </Box>
-);
+const appShellStyles = {
+  root: { height: "100%" },
+  main: { height: "100%", overflowX: "scroll", paddingTop: 0 },
+  body: { height: "100%" },
+} as const;
 
-const Workspace = ({
-  docked,
-  close,
-  sideBarOpen,
-  children
-}: {
-  docked: boolean;
-  close: () => void;
-  sideBarOpen: boolean;
-  children: ReactElement;
-}) => {
-  return (
-    <Fragment>
-      <PollingUpdates />
-
-      <GridWorkspace>
-        <GridAside as="section" sideBarOpen={sideBarOpen}>
-          <Recent close={close} docked={docked} />
-        </GridAside>
-
-        <GridMain sideBarOpen={sideBarOpen}>{children}</GridMain>
-      </GridWorkspace>
-    </Fragment>
-  );
-};
-
-export const Application = ({ children }: { children: ReactElement }) => {
+export const Application = ({ children }: { children: ReactNode }) => {
   const { user, error, isLoading } = useUser();
-  const [open, setOpen] = useState(false);
-  const [docked, setDocked] = useState(false);
+  const [sideMenuIsOpen, setSideMenu] = useState(false);
 
   // this seeds any other query made for stats, for example
   // the query done in Search
   useStats(!!user);
 
-  useEffect(() => {
-    const query = window.matchMedia("(min-width: 630px)");
-
-    const handler = () => {
-      setDocked(query.matches);
-    };
-
-    handler();
-    query.addEventListener("change", handler);
-
-    return () => query.removeEventListener("change", handler);
-  }, [setDocked]);
-
-  const shouldOpen = docked || open;
   const picture = user?.picture;
   const loggedIn = !isLoading && !!user && !error;
 
-  const close = () => setOpen(false);
-
-  if (isLoading) return null;
+  const close = () => setSideMenu(false);
+  const toggleSideMenu = () => setSideMenu((x) => !x);
 
   return (
-    <Grid>
-      <SideMenu loggedIn={loggedIn} gridArea="g-menu" avatarUrl={picture}>
-        {!docked && (
-          <Button icon={<Sidebar />} onClick={() => setOpen((x) => !x)} />
-        )}
-      </SideMenu>
+    <AppShell
+      styles={appShellStyles}
+      fixed
+      navbar={
+        loggedIn ? (
+          <SideMenu
+            open={sideMenuIsOpen}
+            recent={user ? <Recent onClose={close} /> : null}
+          />
+        ) : (
+          <></>
+        )
+      }
+      aside={
+        <Aside>
+          <UserAvatar avatar={picture} />
 
-      {user ? (
-        <Workspace sideBarOpen={shouldOpen} close={close} docked={docked}>
-          {children}
-        </Workspace>
-      ) : (
-        <NoUser />
-      )}
-    </Grid>
+          <Navigation
+            loggedIn={loggedIn}
+            home={
+              <ActionIcon
+                variant="transparent"
+                aria-label="Navigate to landing page"
+                mx="auto"
+                mb="lg"
+                sx={(theme) => ({
+                  "& svg": {
+                    stroke: theme.colors.blue[2],
+                  },
+                  ":hover svg": {
+                    stroke: theme.colors.blue[4],
+                  },
+                })}
+              >
+                <IconHome />
+              </ActionIcon>
+            }
+            create={
+              <ActionIcon
+                variant="transparent"
+                aria-label="Create a new entry"
+                mx="auto"
+                mb="lg"
+                sx={(theme) => ({
+                  "& svg": {
+                    stroke: theme.colors.blue[2],
+                  },
+                  ":hover svg": {
+                    stroke: theme.colors.blue[4],
+                  },
+                })}
+              >
+                <IconPlus />
+              </ActionIcon>
+            }
+            sideMenu={
+              <ActionIcon
+                onClick={toggleSideMenu}
+                component="a"
+                aria-label={
+                  sideMenuIsOpen ? "Close side menu" : "Open side menu"
+                }
+                variant="transparent"
+                mx="auto"
+                mb="lg"
+                sx={(theme) => ({
+                  "& svg": {
+                    stroke: theme.colors.blue[2],
+                  },
+                  ":hover svg": {
+                    stroke: theme.colors.blue[4],
+                  },
+                })}
+              >
+                {sideMenuIsOpen ? <IconX /> : <IconMenu />}
+              </ActionIcon>
+            }
+          />
+
+          <Box
+            sx={{
+              placeSelf: "end",
+              display: loggedIn ? "block" : "none",
+            }}
+            mx="auto"
+            pb="xl"
+          >
+            <ActionIcon
+              component={Link}
+              href="/api/auth/logout"
+              variant="transparent"
+              aria-label="Logout from session"
+              mx="auto"
+              mb="lg"
+              sx={(theme) => ({
+                "& svg": {
+                  stroke: theme.colors.blue[2],
+                },
+                ":hover svg": {
+                  stroke: theme.colors.blue[4],
+                },
+              })}
+            >
+              <IconLogout />
+            </ActionIcon>
+          </Box>
+        </Aside>
+      }
+    >
+      {user ? <Workspace>{children}</Workspace> : <NoUser />}
+    </AppShell>
   );
 };
