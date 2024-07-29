@@ -2,18 +2,16 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import ErrorPage from "next/error";
 import { useQuery, useQueryClient, InfiniteData } from "react-query";
-import { Box, Heading } from "grommet";
-import { Edit, Trash } from "grommet-icons";
+import { Title } from "@mantine/core";
 
 import { Entry } from "interfaces/entry";
-import { Fab, FabBtn } from "components/Fab";
 import { Markdown } from "components/Markdown";
 import { Result } from "interfaces/result";
 
 class ViewError extends Error {
-  statusCode: number;
+  statusCode?: number;
 
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode?: number) {
     // Pass remaining arguments (including vendor specific ones) to parent constructor
     super(message);
 
@@ -23,7 +21,11 @@ class ViewError extends Error {
   }
 }
 
-const fetchViewEntry = async (id: string | string[]) => {
+const fetchViewEntry = async (id: string | string[] | undefined) => {
+  if (typeof id === "undefined") {
+    throw new ViewError("Id was undefined");
+  }
+
   if (Array.isArray(id)) {
     throw new ViewError("Invalid Id", 401);
   }
@@ -104,7 +106,9 @@ export default function ViewEntry() {
   );
 
   if (error)
-    return <ErrorPage statusCode={error.statusCode} title={error.message} />;
+    return (
+      <ErrorPage statusCode={error.statusCode || 400} title={error.message} />
+    );
 
   if (!entry) return null;
 
@@ -115,22 +119,14 @@ export default function ViewEntry() {
       <Head>
         <title>{entry.title}</title>
       </Head>
-      <Box width={{ max: "65ch" }} margin="0 auto" pad="small">
-        <Heading margin={{ bottom: "12px" }}>{entry.title}</Heading>
+
+      <>
+        <Title mb="md" sx={{ fontSize: "3rem", fontWeight: 300 }}>
+          {entry.title}
+        </Title>
+
         <Markdown>{description}</Markdown>
-        <Fab>
-          <FabBtn
-            hoverIndicator
-            icon={<Edit size="32px" color="neutral-3" />}
-            onClick={() => router.push(`/edit/${entry.id}`)}
-          />
-          <FabBtn
-            hoverIndicator
-            icon={<Trash size="32px" color="neutral-4" />}
-            onClick={() => router.push(`/delete/${entry.id}`)}
-          />
-        </Fab>
-      </Box>
+      </>
     </>
   );
 }

@@ -15,7 +15,7 @@ const IndexPage = () => {
         <title>Daybook</title>
       </Head>
 
-      <Search q={query?.q} />
+      <Search query={query?.q} />
     </>
   );
 };

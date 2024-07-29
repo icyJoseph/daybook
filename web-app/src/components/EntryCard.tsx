@@ -1,60 +1,51 @@
-import {
-  Box,
-  Card,
-  CardBody,
-  CardHeader,
-  CardFooter,
-  Button,
-  Text,
-  Heading
-} from "grommet";
-import { Trash, Edit, Calendar, View } from "grommet-icons";
-import { Entry } from "interfaces/entry";
 import Link from "next/link";
-
-type Mode = {
-  preview?: boolean;
-};
+import { Box, Button, ListItem, Text, Title } from "@mantine/core";
+import type { Entry } from "interfaces/entry";
 
 export const EntryCard = ({
   id,
   title,
-  description,
   created_at,
-  preview = false
-}: Entry & Mode) => {
+}: Entry & { preview?: boolean }) => {
   const date = new Date(created_at * 1000).toLocaleDateString();
 
   return (
-    <Card background="light-1" margin="8px 8px 16px">
-      <CardHeader pad="small" flex direction="column">
-        <Heading size="1.5rem" alignSelf="start">
+    <ListItem
+      py="sm"
+      sx={(theme) => ({
+        backgroundColor: theme.colors.gray[0],
+        "&:hover": {
+          backgroundColor: theme.colors.gray[1],
+        },
+      })}
+    >
+      <Box p="md">
+        <Title
+          order={2}
+          align="left"
+          sx={{ fontSize: "1.5rem", fontWeight: 300 }}
+        >
           {title}
-        </Heading>
+        </Title>
 
-        <Box flex direction="row" justify="center">
-          <Calendar />
-          <Text margin={{ left: "8px" }}>
-            <time dateTime={date}>{date}</time>
-          </Text>
-        </Box>
-      </CardHeader>
+        <Text component="p">
+          <time dateTime={date}>{date}</time>
+        </Text>
+      </Box>
 
-      {!preview && <CardBody pad="medium">{description}</CardBody>}
+      <Box mt="sm" sx={{ display: "flex", gap: "1rem" }}>
+        <Button component={Link} variant="subtle" href={`/view/${id}`}>
+          View
+        </Button>
 
-      <CardFooter pad={{ horizontal: "small" }} background="light-2">
-        <Link href={`/view/${id}`} passHref>
-          <Button as="a" icon={<View color="neutral-1" />} hoverIndicator />
-        </Link>
+        <Button component={Link} variant="subtle" href={`/edit/${id}`}>
+          Edit
+        </Button>
 
-        <Link href={`/edit/${id}`} passHref>
-          <Button as="a" icon={<Edit color="neutral-3" />} hoverIndicator />
-        </Link>
-
-        <Link href={`/delete/${id}`} passHref>
-          <Button as="a" icon={<Trash color="neutral-4" />} hoverIndicator />
-        </Link>
-      </CardFooter>
-    </Card>
+        <Button component={Link} variant="subtle" href={`/delete/${id}`}>
+          Delete
+        </Button>
+      </Box>
+    </ListItem>
   );
 };
