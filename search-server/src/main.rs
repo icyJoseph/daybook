@@ -73,6 +73,12 @@ struct AppState<'a> {
     index_name: &'a str,
 }
 
+fn client_error() -> Result<HttpResponse> {
+    Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        reason: format!("No client"),
+    }))
+}
+
 #[cached(size = 1, time = 180)]
 async fn verify_token(token: String) -> bool {
     let web_client = actix_web::client::Client::default();
@@ -121,7 +127,9 @@ async fn later_than<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -227,7 +235,9 @@ async fn infinite<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -265,7 +275,10 @@ async fn bulk<'a>(
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
     let state = &data.clone();
-    let client = Client::new(state.client_url, state.client_secret);
+
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.get_documents::<Entry>(None, info.qty, None).await {
@@ -288,7 +301,9 @@ async fn search<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.search().with_query(&info.0.q).execute().await {
@@ -307,7 +322,9 @@ async fn search<'a>(
 async fn displayed_attributes<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -325,7 +342,9 @@ async fn displayed_attributes<'a>(data: web::Data<AppState<'a>>) -> Result<HttpR
 async fn sortable_attributes<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -343,7 +362,9 @@ async fn sortable_attributes<'a>(data: web::Data<AppState<'a>>) -> Result<HttpRe
 async fn ranking_rules<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -361,7 +382,9 @@ async fn ranking_rules<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse
 async fn reset_ranking_rules<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.reset_ranking_rules().await {
@@ -380,7 +403,9 @@ async fn reset_ranking_rules<'a>(data: web::Data<AppState<'a>>) -> Result<HttpRe
 async fn config_filter_and_sort<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -411,7 +436,9 @@ async fn create<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -478,7 +505,9 @@ async fn edit<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -566,7 +595,9 @@ async fn delete<'a>(
 
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.delete_document(to_delete).await {
@@ -613,7 +644,9 @@ async fn check_update<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     let update_id = info.update_id;
 
@@ -659,7 +692,9 @@ async fn get_by_id<'a>(
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -682,7 +717,9 @@ async fn get_by_id<'a>(
 async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     let meilie_health = client.is_healthy().await;
 
@@ -698,7 +735,9 @@ async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
 async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.get_stats().await {
@@ -723,7 +762,10 @@ async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
 #[post("/create_dump")]
 async fn create_dump<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
-    let client = Client::new(state.client_url, state.client_secret);
+
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.create_dump().await {
         Ok(_) => Ok(HttpResponse::NoContent().body(body::Body::Empty)),
