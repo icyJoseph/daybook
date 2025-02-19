@@ -6,16 +6,17 @@ mod start;
 
 use actix_cors::Cors;
 
+use actix_web::http::StatusCode;
 use actix_web::{
-    body, delete, dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse,
-    HttpServer,
+    delete, dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse, HttpServer,
 };
+
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
+
 use cached::proc_macro::cached;
-use dotenv;
 use entry::Entry;
 use helpers::*;
-use meilisearch_sdk::{client::*, progress::*, search::*};
+use meilisearch_sdk::{client::*, search::*, tasks::*};
 use mutation::*;
 use query::*;
 use serde::{Deserialize, Serialize};
