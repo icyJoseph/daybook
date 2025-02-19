@@ -83,7 +83,7 @@ fn client_error() -> Result<HttpResponse> {
 
 #[cached(size = 1, time = 180)]
 async fn verify_token(token: String) -> bool {
-    let web_client = actix_web::client::Client::default();
+    let web_client = awc::Client::default();
 
     let key = "AUTH0_ISSUER_BASE_URL";
 
@@ -92,7 +92,7 @@ async fn verify_token(token: String) -> bool {
             let endpoint = format!("{}/userinfo", url);
             let res = web_client
                 .get(endpoint)
-                .header("Authorization", format!("Bearer {}", token))
+                .insert_header(("Authorization", format!("Bearer {}", token)))
                 .send()
                 .await;
 
@@ -111,7 +111,7 @@ async fn verify_token(token: String) -> bool {
 async fn validator(
     req: ServiceRequest,
     credentials: BearerAuth,
-) -> actix_web::Result<ServiceRequest, actix_web::Error> {
+) -> actix_web::Result<ServiceRequest, (actix_web::Error, ServiceRequest)> {
     let token = credentials.token();
     let is_valid = verify_token(token.to_owned()).await;
 
@@ -119,7 +119,7 @@ async fn validator(
         return Ok(req);
     }
 
-    return Err(actix_web::error::ErrorUnauthorized("Error"));
+    return Err((actix_web::error::ErrorUnauthorized("Error"), req));
 }
 
 #[get("/later_than")]
