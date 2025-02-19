@@ -289,10 +289,7 @@ async fn infinite<'a>(
 }
 
 #[get("/bulk")]
-async fn bulk<'a>(
-    info: web::Query<BulkQuery>,
-    data: web::Data<AppState<'a>>,
-) -> Result<HttpResponse> {
+async fn bulk<'a>(_: web::Query<BulkQuery>, data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
     let Ok(client) = Client::new(state.client_url, state.client_secret) else {
@@ -300,8 +297,8 @@ async fn bulk<'a>(
     };
 
     match client.get_index(state.index_name).await {
-        Ok(index) => match index.get_documents::<Entry>(None, info.qty, None).await {
-            Ok(all) => Ok(HttpResponse::Ok().json(all)),
+        Ok(index) => match index.get_documents::<Entry>().await {
+            Ok(all) => Ok(HttpResponse::Ok().json(all.results)),
             Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
                 reason: format!("No documents found"),
             })),
