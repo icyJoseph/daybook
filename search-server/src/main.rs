@@ -826,7 +826,9 @@ async fn main() -> Result<()> {
             let boxed_index_name = boxed_key(index_name);
 
             // Connect to search client
-            let ms_client = Client::new(boxed_ms_url, Some(boxed_secret_key));
+            let Ok(ms_client) = Client::new(boxed_ms_url, Some(boxed_secret_key)) else {
+                panic!("Client creation must have failed")
+            };
 
             match check_meilisearch(&ms_client, boxed_index_name).await {
                 Ok(_) => {}
