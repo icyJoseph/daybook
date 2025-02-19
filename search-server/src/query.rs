@@ -25,7 +25,7 @@ pub struct FromQuery {
 
 #[derive(Serialize, Deserialize)]
 pub struct UpdateQuery {
-    pub update_id: u64,
+    pub update_id: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
