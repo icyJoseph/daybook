@@ -37,10 +37,11 @@ impl QueryResponse<Entry> {
         Self {
             hits,
             processing_time_ms: results.processing_time_ms,
-            offset: results.offset,
-            limit: results.limit,
-            nb_hits: results.nb_hits,
-            exhaustive_nb_hits: results.exhaustive_nb_hits,
+            offset: results.offset.unwrap_or_default(),
+            limit: results.limit.unwrap_or_default(),
+            // TODO: Remap this values to the db query
+            nb_hits: 0,
+            exhaustive_nb_hits: false,
         }
     }
 }
@@ -52,7 +53,7 @@ struct ErrorResponse {
 
 #[derive(Serialize)]
 struct StatusResponse {
-    update_id: u64,
+    update_id: u32,
     state: String,
 }
 
@@ -70,7 +71,7 @@ struct Stats {
 
 struct AppState<'a> {
     client_url: &'a str,
-    client_secret: Some(&'a str),
+    client_secret: Option<&'a str>,
     index_name: &'a str,
 }
 
