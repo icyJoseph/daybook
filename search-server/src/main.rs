@@ -404,7 +404,7 @@ async fn reset_ranking_rules<'a>(data: web::Data<AppState<'a>>) -> Result<HttpRe
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.reset_ranking_rules().await {
-            Ok(_) => Ok(HttpResponse::NoContent().body(body::Body::Empty)),
+            Ok(_) => Ok(HttpResponse::new(StatusCode::NO_CONTENT)),
             Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
                 reason: format!("Failed to reset ranking rules"),
             })),
@@ -437,7 +437,7 @@ async fn config_filter_and_sort<'a>(data: web::Data<AppState<'a>>) -> Result<Htt
                 }));
             }
 
-            return Ok(HttpResponse::NoContent().body(body::Body::Empty));
+            return Ok(HttpResponse::new(StatusCode::NO_CONTENT));
         }
         _ => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
             reason: format!("Failed to create document"),
@@ -784,7 +784,7 @@ async fn create_dump<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> 
     };
 
     match client.create_dump().await {
-        Ok(_) => Ok(HttpResponse::NoContent().body(body::Body::Empty)),
+        Ok(_) => Ok(HttpResponse::new(StatusCode::NO_CONTENT)),
         Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
             reason: format!("Failed to create dump"),
         })),
