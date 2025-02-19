@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SearchQuery {
+pub struct Query {
     pub q: String,
 }
 
