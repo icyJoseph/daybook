@@ -476,23 +476,23 @@ async fn create<'a>(
             };
 
             match index.add_or_replace(&[entry], None).await {
-                Ok(progress) => match progress.get_status().await {
+                Ok(task) => match task.wait_for_completion(&client, None, None).await {
                     Ok(status) => {
                         let response = match status {
-                            UpdateStatus::Processing { content } => StatusResponse {
-                                update_id: content.update_id,
+                            Task::Processing { content } => StatusResponse {
+                                update_id: content.uid,
                                 state: format!("processing"),
                             },
-                            UpdateStatus::Enqueued { content } => StatusResponse {
-                                update_id: content.update_id,
+                            Task::Enqueued { content } => StatusResponse {
+                                update_id: content.uid,
                                 state: format!("enqueued"),
                             },
-                            UpdateStatus::Failed { content } => StatusResponse {
-                                update_id: content.update_id,
+                            Task::Failed { content } => StatusResponse {
+                                update_id: content.task.uid,
                                 state: format!("failed"),
                             },
-                            UpdateStatus::Processed { content } => StatusResponse {
-                                update_id: content.update_id,
+                            Task::Succeeded { content } => StatusResponse {
+                                update_id: content.uid,
                                 state: format!("done"),
                             },
                         };
@@ -558,23 +558,23 @@ async fn edit<'a>(
                     };
 
                     match index.add_or_update(&[entry], Some("id")).await {
-                        Ok(progress) => match progress.get_status().await {
+                        Ok(task) => match task.wait_for_completion(&client, None, None).await {
                             Ok(status) => {
                                 let response = match status {
-                                    UpdateStatus::Processing { content } => StatusResponse {
-                                        update_id: content.update_id,
+                                    Task::Processing { content } => StatusResponse {
+                                        update_id: content.uid,
                                         state: format!("processing"),
                                     },
-                                    UpdateStatus::Enqueued { content } => StatusResponse {
-                                        update_id: content.update_id,
+                                    Task::Enqueued { content } => StatusResponse {
+                                        update_id: content.uid,
                                         state: format!("enqueued"),
                                     },
-                                    UpdateStatus::Failed { content } => StatusResponse {
-                                        update_id: content.update_id,
+                                    Task::Failed { content } => StatusResponse {
+                                        update_id: content.task.uid,
                                         state: format!("failed"),
                                     },
-                                    UpdateStatus::Processed { content } => StatusResponse {
-                                        update_id: content.update_id,
+                                    Task::Succeeded { content } => StatusResponse {
+                                        update_id: content.uid,
                                         state: format!("done"),
                                     },
                                 };
@@ -617,23 +617,23 @@ async fn delete<'a>(
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.delete_document(to_delete).await {
-            Ok(progress) => match progress.get_status().await {
+            Ok(task) => match task.wait_for_completion(&client, None, None).await {
                 Ok(status) => {
                     let response = match status {
-                        UpdateStatus::Processing { content } => StatusResponse {
-                            update_id: content.update_id,
+                        Task::Processing { content } => StatusResponse {
+                            update_id: content.uid,
                             state: format!("processing"),
                         },
-                        UpdateStatus::Enqueued { content } => StatusResponse {
-                            update_id: content.update_id,
+                        Task::Enqueued { content } => StatusResponse {
+                            update_id: content.uid,
                             state: format!("enqueued"),
                         },
-                        UpdateStatus::Failed { content } => StatusResponse {
-                            update_id: content.update_id,
+                        Task::Failed { content } => StatusResponse {
+                            update_id: content.task.uid,
                             state: format!("failed"),
                         },
-                        UpdateStatus::Processed { content } => StatusResponse {
-                            update_id: content.update_id,
+                        Task::Succeeded { content } => StatusResponse {
+                            update_id: content.uid,
                             state: format!("done"),
                         },
                     };
@@ -667,23 +667,23 @@ async fn check_update<'a>(
     let update_id = info.update_id;
 
     match client.get_index(state.index_name).await {
-        Ok(index) => match index.get_update(update_id).await {
+        Ok(index) => match index.get_task(Box::new(update_id)).await {
             Ok(status) => {
                 let response = match status {
-                    UpdateStatus::Processing { content } => StatusResponse {
-                        update_id: content.update_id,
+                    Task::Processing { content } => StatusResponse {
+                        update_id: content.uid,
                         state: format!("processing"),
                     },
-                    UpdateStatus::Enqueued { content } => StatusResponse {
-                        update_id: content.update_id,
+                    Task::Enqueued { content } => StatusResponse {
+                        update_id: content.uid,
                         state: format!("enqueued"),
                     },
-                    UpdateStatus::Failed { content } => StatusResponse {
-                        update_id: content.update_id,
+                    Task::Failed { content } => StatusResponse {
+                        update_id: content.task.uid,
                         state: format!("failed"),
                     },
-                    UpdateStatus::Processed { content } => StatusResponse {
-                        update_id: content.update_id,
+                    Task::Succeeded { content } => StatusResponse {
+                        update_id: content.uid,
                         state: format!("done"),
                     },
                 };
