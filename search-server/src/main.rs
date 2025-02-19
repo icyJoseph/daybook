@@ -528,7 +528,7 @@ async fn edit<'a>(
     match client.get_index(state.index_name).await {
         Ok(index) => {
             let current_id = info.get_id();
-            match index.get_document::<Entry>(current_id).await {
+            match index.get_document::<Entry>(&current_id).await {
                 Ok(current) => {
                     let entry = Entry {
                         id: info.get_id(),
@@ -716,7 +716,7 @@ async fn get_by_id<'a>(
         Ok(index) => {
             let entry_id = path.into_inner().0;
             let c_entry_id = entry_id.clone();
-            match index.get_document::<Entry>(entry_id).await {
+            match index.get_document::<Entry>(&entry_id).await {
                 Ok(entry) => Ok(HttpResponse::Ok().json(entry)),
                 Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
                     reason: format!("No entry found with id: {}", c_entry_id),
