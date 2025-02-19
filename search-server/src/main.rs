@@ -312,7 +312,7 @@ async fn bulk<'a>(_: web::Query<BulkQuery>, data: web::Data<AppState<'a>>) -> Re
 
 #[get("/search")]
 async fn search<'a>(
-    info: web::Query<SearchQuery>,
+    info: web::Query<Query>,
     data: web::Data<AppState<'a>>,
 ) -> Result<HttpResponse> {
     let state = &data.clone();
