@@ -69,7 +69,7 @@ struct Stats {
 
 struct AppState<'a> {
     client_url: &'a str,
-    client_secret: &'a str,
+    client_secret: Some(&'a str),
     index_name: &'a str,
 }
 
@@ -768,7 +768,7 @@ async fn main() -> Result<()> {
             let boxed_index_name = boxed_key(index_name);
 
             // Connect to search client
-            let ms_client = Client::new(boxed_ms_url, boxed_secret_key);
+            let ms_client = Client::new(boxed_ms_url, Some(boxed_secret_key));
 
             match check_meilisearch(&ms_client, boxed_index_name).await {
                 Ok(_) => {}
@@ -777,7 +777,7 @@ async fn main() -> Result<()> {
 
             let state = web::Data::new(AppState {
                 client_url: boxed_ms_url,
-                client_secret: boxed_secret_key,
+                client_secret: Some(boxed_secret_key),
                 index_name: boxed_index_name,
             });
 
