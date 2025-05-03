@@ -423,13 +423,21 @@ async fn config_filter_and_sort(data: web::Data<AppState<'_>>) -> Result<HttpRes
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
-            if let Err(_) = index.set_filterable_attributes(&["created_at"]).await {
+            if index
+                .set_filterable_attributes(&["created_at"])
+                .await
+                .is_err()
+            {
                 return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
                     reason: "Failed to configure filterable index".to_string(),
                 }));
             };
 
-            if let Err(_) = index.set_sortable_attributes(&["created_at"]).await {
+            if index
+                .set_sortable_attributes(&["created_at"])
+                .await
+                .is_err()
+            {
                 return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
                     reason: "Failed to configure sortable index".to_string(),
                 }));
@@ -479,30 +487,30 @@ async fn create(
                         let response = match status {
                             Task::Processing { content } => StatusResponse {
                                 update_id: content.uid,
-                                state: format!("processing"),
+                                state: "processing".to_string(),
                             },
                             Task::Enqueued { content } => StatusResponse {
                                 update_id: content.uid,
-                                state: format!("enqueued"),
+                                state: "enqueued".to_string(),
                             },
                             Task::Failed { content } => StatusResponse {
                                 update_id: content.task.uid,
-                                state: format!("failed"),
+                                state: "failed".to_string(),
                             },
                             Task::Succeeded { content } => StatusResponse {
                                 update_id: content.uid,
-                                state: format!("done"),
+                                state: "done".to_string(),
                             },
                         };
 
                         Ok(HttpResponse::Ok().json(response))
                     }
                     Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                        reason: format!("Unable to get update status"),
+                        reason: "Unable to get update status".to_string(),
                     })),
                 },
                 Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Failed to create document"),
+                    reason: "Failed to create document".to_string(),
                 })),
             }
         }
@@ -561,35 +569,35 @@ async fn edit<'a>(
                                 let response = match status {
                                     Task::Processing { content } => StatusResponse {
                                         update_id: content.uid,
-                                        state: format!("processing"),
+                                        state: "processing".to_string(),
                                     },
                                     Task::Enqueued { content } => StatusResponse {
                                         update_id: content.uid,
-                                        state: format!("enqueued"),
+                                        state: "enqueued".to_string(),
                                     },
                                     Task::Failed { content } => StatusResponse {
                                         update_id: content.task.uid,
-                                        state: format!("failed"),
+                                        state: "failed".to_string(),
                                     },
                                     Task::Succeeded { content } => StatusResponse {
                                         update_id: content.uid,
-                                        state: format!("done"),
+                                        state: "done".to_string(),
                                     },
                                 };
 
                                 Ok(HttpResponse::Ok().json(response))
                             }
                             Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                                reason: format!("Unable to get update status"),
+                                reason: "Unable to get update status".to_string(),
                             })),
                         },
                         Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                            reason: format!("Failed to create document"),
+                            reason: "Failed to create document".to_string(),
                         })),
                     }
                 }
                 Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Failed to create document"),
+                    reason: "Failed to create document".to_string(),
                 })),
             }
         }
@@ -600,10 +608,7 @@ async fn edit<'a>(
 }
 
 #[delete("/delete/{id}")]
-async fn delete<'a>(
-    path: web::Path<(String,)>,
-    data: web::Data<AppState<'a>>,
-) -> Result<HttpResponse> {
+async fn delete(path: web::Path<(String,)>, data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let to_delete = path.into_inner().0;
     let c_to_delete = to_delete.clone();
 
@@ -620,29 +625,29 @@ async fn delete<'a>(
                     let response = match status {
                         Task::Processing { content } => StatusResponse {
                             update_id: content.uid,
-                            state: format!("processing"),
+                            state: "processing".to_string(),
                         },
                         Task::Enqueued { content } => StatusResponse {
                             update_id: content.uid,
-                            state: format!("enqueued"),
+                            state: "enqueued".to_string(),
                         },
                         Task::Failed { content } => StatusResponse {
                             update_id: content.task.uid,
-                            state: format!("failed"),
+                            state: "failed".to_string(),
                         },
                         Task::Succeeded { content } => StatusResponse {
                             update_id: content.uid,
-                            state: format!("done"),
+                            state: "done".to_string(),
                         },
                     };
                     Ok(HttpResponse::Ok().json(response))
                 }
                 Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Unable to get update status"),
+                    reason: "Unable to get update status".to_string(),
                 })),
             },
             Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                reason: format!("Nothing to delete. Document id: {}", c_to_delete),
+                reason: format!("Nothing to delete. Document id: {}", c_to_delete,),
             })),
         },
         Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
@@ -714,6 +719,7 @@ async fn get_by_id(
         Ok(index) => {
             let entry_id = path.into_inner().0;
             let c_entry_id = entry_id.clone();
+
             match index.get_document::<Entry>(&entry_id).await {
                 Ok(entry) => Ok(HttpResponse::Ok().json(entry)),
                 Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
