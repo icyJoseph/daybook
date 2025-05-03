@@ -77,13 +77,13 @@ struct AppState<'a> {
 
 fn client_error() -> Result<HttpResponse> {
     Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-        reason: format!("No client"),
+        reason: "No client".to_string(),
     }))
 }
 
 #[cached(size = 1, time = 180)]
 async fn verify_token(token: String) -> bool {
-    let web_client = awc::Client::default();
+    let web_client = reqwest::Client::new();
 
     let key = "AUTH0_ISSUER_BASE_URL";
 
@@ -92,15 +92,16 @@ async fn verify_token(token: String) -> bool {
             let endpoint = format!("{}/userinfo", url);
             let res = web_client
                 .get(endpoint)
-                .insert_header(("Authorization", format!("Bearer {}", token)))
+                .header("Authorization", format!("Bearer {}", token))
                 .send()
                 .await;
 
             match res {
                 Ok(response) => response.status() == 200,
-                Err(_) => {
+                Err(reason) => {
+                    println!("{reason}");
                     println!("Failed to react: {}", key);
-                    return false;
+                    false
                 }
             }
         }
