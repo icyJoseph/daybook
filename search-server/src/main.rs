@@ -472,10 +472,7 @@ async fn create(
                 description: info.description.clone(),
                 created_at,
                 organization: info.organization.clone(),
-                privacy: match info.privacy {
-                    Some(p) => p,
-                    None => false,
-                },
+                privacy: info.privacy.unwrap_or(false),
                 links: vec![],
                 tags: vec![],
                 images: vec![],
@@ -521,10 +518,7 @@ async fn create(
 }
 
 #[post("/edit")]
-async fn edit<'a>(
-    info: web::Json<EditEntry>,
-    data: web::Data<AppState<'a>>,
-) -> Result<HttpResponse> {
+async fn edit(info: web::Json<EditEntry>, data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
     let Ok(client) = Client::new(state.client_url, state.client_secret) else {
@@ -553,8 +547,8 @@ async fn edit<'a>(
                             None => current.organization,
                         },
 
-                        privacy: match &info.privacy {
-                            Some(val) => *val,
+                        privacy: match info.privacy {
+                            Some(val) => val,
                             None => current.privacy,
                         },
 
