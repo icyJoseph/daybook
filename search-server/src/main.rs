@@ -238,9 +238,7 @@ async fn later_than(
             Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
         }
 
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -283,9 +281,7 @@ async fn infinite(
             Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
         }
 
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -305,9 +301,7 @@ async fn bulk(_: web::Query<BulkQuery>, data: web::Data<AppState<'_>>) -> Result
             })),
         },
 
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -326,9 +320,7 @@ async fn search(info: web::Query<Query>, data: web::Data<AppState<'_>>) -> Resul
                 reason: "Nothing found".to_string(),
             })),
         },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -346,9 +338,7 @@ async fn displayed_attributes(data: web::Data<AppState<'_>>) -> Result<HttpRespo
 
             Ok(HttpResponse::Ok().json(attributes))
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -366,9 +356,7 @@ async fn sortable_attributes(data: web::Data<AppState<'_>>) -> Result<HttpRespon
 
             Ok(HttpResponse::Ok().json(attributes))
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -386,9 +374,7 @@ async fn ranking_rules(data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
 
             Ok(HttpResponse::Ok().json(rules))
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -407,9 +393,7 @@ async fn reset_ranking_rules(data: web::Data<AppState<'_>>) -> Result<HttpRespon
                 reason: "Failed to reset ranking rules".to_string(),
             })),
         },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -511,9 +495,7 @@ async fn create(
                 })),
             }
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -595,9 +577,7 @@ async fn edit(info: web::Json<EditEntry>, data: web::Data<AppState<'_>>) -> Resu
                 })),
             }
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -644,9 +624,7 @@ async fn delete(path: web::Path<(String,)>, data: web::Data<AppState<'_>>) -> Re
                 reason: format!("Nothing to delete. Document id: {}", c_to_delete,),
             })),
         },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -692,9 +670,7 @@ async fn check_update(
                 state: "not found".to_string(),
             })),
         },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -721,9 +697,7 @@ async fn get_by_id(
                 })),
             }
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
@@ -767,9 +741,7 @@ async fn stats(data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
                 reason: "No stats for client".to_string(),
             })),
         },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: "No client".to_string(),
-        })),
+        Err(_) => client_error(),
     }
 }
 
