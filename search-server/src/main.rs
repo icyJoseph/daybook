@@ -435,6 +435,40 @@ async fn config_filter_and_sort(data: web::Data<AppState<'_>>) -> Result<HttpRes
     }
 }
 
+#[post("/recreate")]
+async fn recreate(info: web::Json<Entry>, data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            let uuid = Uuid::new_v4();
+            let entry = Entry {
+                id: uuid.to_hyphenated().to_string(),
+                title: info.title.clone(),
+                description: info.description.clone(),
+                created_at: info.created_at,
+                organization: info.organization.clone(),
+                privacy: info.privacy,
+                links: vec![],
+                tags: vec![],
+                images: vec![],
+            };
+
+            match index.add_or_replace(&[entry], None).await {
+                Ok(_) => Ok(HttpResponse::new(StatusCode::NO_CONTENT)),
+                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: "Failed to create document".to_string(),
+                })),
+            }
+        }
+        Err(_) => client_error(),
+    }
+}
+
 #[post("/create")]
 async fn create(
     info: web::Json<CreateEntry>,
@@ -828,6 +862,7 @@ async fn main() -> Result<()> {
                     .service(config_filter_and_sort)
                     .service(infinite)
                     .service(create)
+                    .service(recreate)
                     .service(edit)
                     .service(check_update)
                     .service(delete)
