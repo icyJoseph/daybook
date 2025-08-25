@@ -22,10 +22,24 @@ pub async fn start_meilisearch(path: &str) -> std::io::Result<()> {
 
 /// Runs a simple check for client health
 /// and presence of `entries` index
-pub async fn check_meilisearch<'a>(client: &Client, index_name: &str) -> Result<()> {
+pub async fn check_meilisearch(client: &Client, index_name: &str) -> Result<()> {
     let index: Index = match client.get_index(index_name).await {
         Ok(res) => res,
-        Err(why) => panic!("{:?}", why),
+        Err(_) => match client.create_index(index_name, Some("id")).await {
+            Ok(task_id) => {
+                let Ok(_) = client.get_task(task_id).await else {
+                    panic!("Failed to create required index")
+                };
+
+                let Ok(res) = client.get_index(index_name).await else {
+                    panic!("Created but failed to get required index")
+                };
+
+                res
+            }
+
+            Err(_) => panic!("Could not find, nor create the required index"),
+        },
     };
 
     let stats: IndexStats = match index.get_stats().await {

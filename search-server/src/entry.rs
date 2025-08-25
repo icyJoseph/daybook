@@ -1,4 +1,3 @@
-use meilisearch_sdk::document::Document;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -28,12 +27,5 @@ impl Clone for Entry {
             tags: self.tags.clone(),
             images: self.images.clone(),
         }
-    }
-}
-
-impl Document for Entry {
-    type UIDType = String;
-    fn get_uid(&self) -> &Self::UIDType {
-        &self.id
     }
 }

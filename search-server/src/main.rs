@@ -6,16 +6,17 @@ mod start;
 
 use actix_cors::Cors;
 
+use actix_web::http::StatusCode;
 use actix_web::{
-    body, delete, dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse,
-    HttpServer,
+    delete, dev::ServiceRequest, get, middleware::Logger, post, web, App, HttpResponse, HttpServer,
 };
+
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
+
 use cached::proc_macro::cached;
-use dotenv;
 use entry::Entry;
 use helpers::*;
-use meilisearch_sdk::{client::*, progress::*, search::*};
+use meilisearch_sdk::{client::*, search::*, tasks::*};
 use mutation::*;
 use query::*;
 use serde::{Deserialize, Serialize};
@@ -36,10 +37,11 @@ impl QueryResponse<Entry> {
         Self {
             hits,
             processing_time_ms: results.processing_time_ms,
-            offset: results.offset,
-            limit: results.limit,
-            nb_hits: results.nb_hits,
-            exhaustive_nb_hits: results.exhaustive_nb_hits,
+            offset: results.offset.unwrap_or_default(),
+            limit: results.limit.unwrap_or_default(),
+            // TODO: Remap this values to the db query
+            nb_hits: 0,
+            exhaustive_nb_hits: false,
         }
     }
 }
@@ -51,7 +53,7 @@ struct ErrorResponse {
 
 #[derive(Serialize)]
 struct StatusResponse {
-    update_id: u64,
+    update_id: u32,
     state: String,
 }
 
@@ -69,13 +71,19 @@ struct Stats {
 
 struct AppState<'a> {
     client_url: &'a str,
-    client_secret: &'a str,
+    client_secret: Option<&'a str>,
     index_name: &'a str,
+}
+
+fn client_error() -> Result<HttpResponse> {
+    Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
+        reason: "No client".to_string(),
+    }))
 }
 
 #[cached(size = 1, time = 180)]
 async fn verify_token(token: String) -> bool {
-    let web_client = actix_web::client::Client::default();
+    let web_client = reqwest::Client::new();
 
     let key = "AUTH0_ISSUER_BASE_URL";
 
@@ -90,9 +98,10 @@ async fn verify_token(token: String) -> bool {
 
             match res {
                 Ok(response) => response.status() == 200,
-                Err(_) => {
+                Err(reason) => {
+                    println!("{reason}");
                     println!("Failed to react: {}", key);
-                    return false;
+                    false
                 }
             }
         }
@@ -103,7 +112,7 @@ async fn verify_token(token: String) -> bool {
 async fn validator(
     req: ServiceRequest,
     credentials: BearerAuth,
-) -> actix_web::Result<ServiceRequest, actix_web::Error> {
+) -> actix_web::Result<ServiceRequest, (actix_web::Error, ServiceRequest)> {
     let token = credentials.token();
     let is_valid = verify_token(token.to_owned()).await;
 
@@ -111,17 +120,19 @@ async fn validator(
         return Ok(req);
     }
 
-    return Err(actix_web::error::ErrorUnauthorized("Error"));
+    Err((actix_web::error::ErrorUnauthorized("Error"), req))
 }
 
 #[get("/later_than")]
-async fn later_than<'a>(
+async fn later_than(
     info: web::Query<FromQuery>,
-    data: web::Data<AppState<'a>>,
+    data: web::Data<AppState<'_>>,
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -136,13 +147,18 @@ async fn later_than<'a>(
                     .execute()
                     .await
                     .unwrap_or(SearchResults::<Entry> {
+                        // TODO: Impl default, for this "empty" result, or just make it None
                         hits: vec![],
-                        offset: 0,
-                        limit: 20,
-                        nb_hits: 0,
-                        exhaustive_nb_hits: false,
-                        facets_distribution: None,
-                        exhaustive_facets_count: None,
+                        offset: Some(0),
+                        limit: Some(20),
+                        estimated_total_hits: None,
+                        hits_per_page: None,
+                        facet_stats: None,
+                        facet_distribution: None,
+                        index_uid: None,
+                        page: None,
+                        total_pages: None,
+                        total_hits: None,
                         processing_time_ms: 0,
                         query: "".to_string(),
                     }),
@@ -159,12 +175,16 @@ async fn later_than<'a>(
                         .await
                         .unwrap_or(SearchResults::<Entry> {
                             hits: vec![],
-                            offset: 0,
-                            limit: 20,
-                            nb_hits: 0,
-                            exhaustive_nb_hits: false,
-                            facets_distribution: None,
-                            exhaustive_facets_count: None,
+                            offset: Some(0),
+                            limit: Some(20),
+                            estimated_total_hits: None,
+                            hits_per_page: None,
+                            facet_stats: None,
+                            facet_distribution: None,
+                            index_uid: None,
+                            page: None,
+                            total_pages: None,
+                            total_hits: None,
                             processing_time_ms: 0,
                             query: "".to_string(),
                         });
@@ -182,17 +202,21 @@ async fn later_than<'a>(
                             .await
                             .unwrap_or(SearchResults::<Entry> {
                                 hits: vec![],
-                                offset,
-                                limit,
-                                nb_hits: 0,
-                                exhaustive_nb_hits: false,
-                                facets_distribution: None,
-                                exhaustive_facets_count: None,
+                                offset: Some(0),
+                                limit: Some(20),
+                                estimated_total_hits: None,
+                                hits_per_page: None,
+                                facet_stats: None,
+                                facet_distribution: None,
+                                index_uid: None,
+                                page: None,
+                                total_pages: None,
+                                total_hits: None,
                                 processing_time_ms: 0,
                                 query: "".to_string(),
                             });
 
-                        if next.hits.len() == 0 {
+                        if next.hits.is_empty() {
                             break;
                         }
 
@@ -214,20 +238,20 @@ async fn later_than<'a>(
             Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
         }
 
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[get("/infinite")]
-async fn infinite<'a>(
+async fn infinite(
     info: web::Query<InfiniteQuery>,
-    data: web::Data<AppState<'a>>,
+    data: web::Data<AppState<'_>>,
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -240,12 +264,16 @@ async fn infinite<'a>(
                 .await
                 .unwrap_or(SearchResults::<Entry> {
                     hits: vec![],
-                    offset: info.offset,
-                    limit: info.limit,
-                    nb_hits: 0,
-                    exhaustive_nb_hits: false,
-                    facets_distribution: None,
-                    exhaustive_facets_count: None,
+                    offset: Some(0),
+                    limit: Some(20),
+                    estimated_total_hits: None,
+                    hits_per_page: None,
+                    facet_stats: None,
+                    facet_distribution: None,
+                    index_uid: None,
+                    page: None,
+                    total_pages: None,
+                    total_hits: None,
                     processing_time_ms: 0,
                     query: "".to_string(),
                 });
@@ -253,165 +281,204 @@ async fn infinite<'a>(
             Ok(HttpResponse::Ok().json(QueryResponse::new(response)))
         }
 
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[get("/bulk")]
-async fn bulk<'a>(
-    info: web::Query<BulkQuery>,
-    data: web::Data<AppState<'a>>,
-) -> Result<HttpResponse> {
+async fn bulk(_: web::Query<BulkQuery>, data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
-    let client = Client::new(state.client_url, state.client_secret);
+
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
-        Ok(index) => match index.get_documents::<Entry>(None, info.qty, None).await {
-            Ok(all) => Ok(HttpResponse::Ok().json(all)),
+        Ok(index) => match index.get_documents::<Entry>().await {
+            Ok(all) => Ok(HttpResponse::Ok().json(all.results)),
             Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                reason: format!("No documents found"),
+                reason: "No documents found".to_string(),
             })),
         },
 
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[get("/search")]
-async fn search<'a>(
-    info: web::Query<SearchQuery>,
-    data: web::Data<AppState<'a>>,
-) -> Result<HttpResponse> {
+async fn search(info: web::Query<Query>, data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.search().with_query(&info.0.q).execute().await {
             Ok(results) => Ok(HttpResponse::Ok().json(QueryResponse::new(results))),
             Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                reason: format!("Nothing found"),
+                reason: "Nothing found".to_string(),
             })),
         },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[post("/displayed_attributes")]
-async fn displayed_attributes<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+async fn displayed_attributes(data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
             let attributes = index.get_displayed_attributes().await.unwrap();
 
-            return Ok(HttpResponse::Ok().json(attributes));
+            Ok(HttpResponse::Ok().json(attributes))
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[post("/sortable_attributes")]
-async fn sortable_attributes<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+async fn sortable_attributes(data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
             let attributes = index.get_sortable_attributes().await.unwrap();
 
-            return Ok(HttpResponse::Ok().json(attributes));
+            Ok(HttpResponse::Ok().json(attributes))
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[post("/ranking_rules")]
-async fn ranking_rules<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+async fn ranking_rules(data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
             let rules = index.get_ranking_rules().await.unwrap();
 
-            return Ok(HttpResponse::Ok().json(rules));
+            Ok(HttpResponse::Ok().json(rules))
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[delete("/reset_ranking_rules")]
-async fn reset_ranking_rules<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+async fn reset_ranking_rules(data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.reset_ranking_rules().await {
-            Ok(_) => Ok(HttpResponse::NoContent().body(body::Body::Empty)),
+            Ok(_) => Ok(HttpResponse::new(StatusCode::NO_CONTENT)),
             Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("Failed to reset ranking rules"),
+                reason: "Failed to reset ranking rules".to_string(),
             })),
         },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[post("/config_filter_and_sort")]
-async fn config_filter_and_sort<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+async fn config_filter_and_sort(data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
-            if let Err(_) = index.set_filterable_attributes(&["created_at"]).await {
+            if index
+                .set_filterable_attributes(&["created_at"])
+                .await
+                .is_err()
+            {
                 return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Failed to configure filterable index"),
+                    reason: "Failed to configure filterable index".to_string(),
                 }));
             };
 
-            if let Err(_) = index.set_sortable_attributes(&["created_at"]).await {
+            if index
+                .set_sortable_attributes(&["created_at"])
+                .await
+                .is_err()
+            {
                 return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Failed to configure sortable index"),
+                    reason: "Failed to configure sortable index".to_string(),
                 }));
             }
 
-            return Ok(HttpResponse::NoContent().body(body::Body::Empty));
+            Ok(HttpResponse::new(StatusCode::NO_CONTENT))
         }
         _ => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-            reason: format!("Failed to create document"),
+            reason: "Failed to create document".to_string(),
         })),
     }
 }
 
+#[post("/recreate")]
+async fn recreate(info: web::Json<Entry>, data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
+    let state = &data.clone();
+
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
+
+    match client.get_index(state.index_name).await {
+        Ok(index) => {
+            let uuid = Uuid::new_v4();
+            let entry = Entry {
+                id: uuid.to_hyphenated().to_string(),
+                title: info.title.clone(),
+                description: info.description.clone(),
+                created_at: info.created_at,
+                organization: info.organization.clone(),
+                privacy: info.privacy,
+                links: vec![],
+                tags: vec![],
+                images: vec![],
+            };
+
+            match index.add_or_replace(&[entry], None).await {
+                Ok(_) => Ok(HttpResponse::new(StatusCode::NO_CONTENT)),
+                Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    reason: "Failed to create document".to_string(),
+                })),
+            }
+        }
+        Err(_) => client_error(),
+    }
+}
+
 #[post("/create")]
-async fn create<'a>(
+async fn create(
     info: web::Json<CreateEntry>,
-    data: web::Data<AppState<'a>>,
+    data: web::Data<AppState<'_>>,
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
@@ -423,67 +490,61 @@ async fn create<'a>(
                 description: info.description.clone(),
                 created_at,
                 organization: info.organization.clone(),
-                privacy: match info.privacy {
-                    Some(p) => p,
-                    None => false,
-                },
+                privacy: info.privacy.unwrap_or(false),
                 links: vec![],
                 tags: vec![],
                 images: vec![],
             };
 
             match index.add_or_replace(&[entry], None).await {
-                Ok(progress) => match progress.get_status().await {
+                Ok(task) => match task.wait_for_completion(&client, None, None).await {
                     Ok(status) => {
                         let response = match status {
-                            UpdateStatus::Processing { content } => StatusResponse {
-                                update_id: content.update_id,
-                                state: format!("processing"),
+                            Task::Processing { content } => StatusResponse {
+                                update_id: content.uid,
+                                state: "processing".to_string(),
                             },
-                            UpdateStatus::Enqueued { content } => StatusResponse {
-                                update_id: content.update_id,
-                                state: format!("enqueued"),
+                            Task::Enqueued { content } => StatusResponse {
+                                update_id: content.uid,
+                                state: "enqueued".to_string(),
                             },
-                            UpdateStatus::Failed { content } => StatusResponse {
-                                update_id: content.update_id,
-                                state: format!("failed"),
+                            Task::Failed { content } => StatusResponse {
+                                update_id: content.task.uid,
+                                state: "failed".to_string(),
                             },
-                            UpdateStatus::Processed { content } => StatusResponse {
-                                update_id: content.update_id,
-                                state: format!("done"),
+                            Task::Succeeded { content } => StatusResponse {
+                                update_id: content.uid,
+                                state: "done".to_string(),
                             },
                         };
 
                         Ok(HttpResponse::Ok().json(response))
                     }
                     Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                        reason: format!("Unable to get update status"),
+                        reason: "Unable to get update status".to_string(),
                     })),
                 },
                 Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Failed to create document"),
+                    reason: "Failed to create document".to_string(),
                 })),
             }
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[post("/edit")]
-async fn edit<'a>(
-    info: web::Json<EditEntry>,
-    data: web::Data<AppState<'a>>,
-) -> Result<HttpResponse> {
+async fn edit(info: web::Json<EditEntry>, data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
             let current_id = info.get_id();
-            match index.get_document::<Entry>(current_id).await {
+            match index.get_document::<Entry>(&current_id).await {
                 Ok(current) => {
                     let entry = Entry {
                         id: info.get_id(),
@@ -502,8 +563,8 @@ async fn edit<'a>(
                             None => current.organization,
                         },
 
-                        privacy: match &info.privacy {
-                            Some(val) => *val,
+                        privacy: match info.privacy {
+                            Some(val) => val,
                             None => current.privacy,
                         },
 
@@ -513,129 +574,126 @@ async fn edit<'a>(
                     };
 
                     match index.add_or_update(&[entry], Some("id")).await {
-                        Ok(progress) => match progress.get_status().await {
+                        Ok(task) => match task.wait_for_completion(&client, None, None).await {
                             Ok(status) => {
                                 let response = match status {
-                                    UpdateStatus::Processing { content } => StatusResponse {
-                                        update_id: content.update_id,
-                                        state: format!("processing"),
+                                    Task::Processing { content } => StatusResponse {
+                                        update_id: content.uid,
+                                        state: "processing".to_string(),
                                     },
-                                    UpdateStatus::Enqueued { content } => StatusResponse {
-                                        update_id: content.update_id,
-                                        state: format!("enqueued"),
+                                    Task::Enqueued { content } => StatusResponse {
+                                        update_id: content.uid,
+                                        state: "enqueued".to_string(),
                                     },
-                                    UpdateStatus::Failed { content } => StatusResponse {
-                                        update_id: content.update_id,
-                                        state: format!("failed"),
+                                    Task::Failed { content } => StatusResponse {
+                                        update_id: content.task.uid,
+                                        state: "failed".to_string(),
                                     },
-                                    UpdateStatus::Processed { content } => StatusResponse {
-                                        update_id: content.update_id,
-                                        state: format!("done"),
+                                    Task::Succeeded { content } => StatusResponse {
+                                        update_id: content.uid,
+                                        state: "done".to_string(),
                                     },
                                 };
 
                                 Ok(HttpResponse::Ok().json(response))
                             }
                             Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                                reason: format!("Unable to get update status"),
+                                reason: "Unable to get update status".to_string(),
                             })),
                         },
                         Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                            reason: format!("Failed to create document"),
+                            reason: "Failed to create document".to_string(),
                         })),
                     }
                 }
                 Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Failed to create document"),
+                    reason: "Failed to create document".to_string(),
                 })),
             }
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[delete("/delete/{id}")]
-async fn delete<'a>(
-    path: web::Path<(String,)>,
-    data: web::Data<AppState<'a>>,
-) -> Result<HttpResponse> {
+async fn delete(path: web::Path<(String,)>, data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let to_delete = path.into_inner().0;
     let c_to_delete = to_delete.clone();
 
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.delete_document(to_delete).await {
-            Ok(progress) => match progress.get_status().await {
+            Ok(task) => match task.wait_for_completion(&client, None, None).await {
                 Ok(status) => {
                     let response = match status {
-                        UpdateStatus::Processing { content } => StatusResponse {
-                            update_id: content.update_id,
-                            state: format!("processing"),
+                        Task::Processing { content } => StatusResponse {
+                            update_id: content.uid,
+                            state: "processing".to_string(),
                         },
-                        UpdateStatus::Enqueued { content } => StatusResponse {
-                            update_id: content.update_id,
-                            state: format!("enqueued"),
+                        Task::Enqueued { content } => StatusResponse {
+                            update_id: content.uid,
+                            state: "enqueued".to_string(),
                         },
-                        UpdateStatus::Failed { content } => StatusResponse {
-                            update_id: content.update_id,
-                            state: format!("failed"),
+                        Task::Failed { content } => StatusResponse {
+                            update_id: content.task.uid,
+                            state: "failed".to_string(),
                         },
-                        UpdateStatus::Processed { content } => StatusResponse {
-                            update_id: content.update_id,
-                            state: format!("done"),
+                        Task::Succeeded { content } => StatusResponse {
+                            update_id: content.uid,
+                            state: "done".to_string(),
                         },
                     };
                     Ok(HttpResponse::Ok().json(response))
                 }
                 Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    reason: format!("Unable to get update status"),
+                    reason: "Unable to get update status".to_string(),
                 })),
             },
             Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
-                reason: format!("Nothing to delete. Document id: {}", c_to_delete),
+                reason: format!("Nothing to delete. Document id: {}", c_to_delete,),
             })),
         },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[get("/check_update")]
-async fn check_update<'a>(
+async fn check_update(
     info: web::Query<UpdateQuery>,
-    data: web::Data<AppState<'a>>,
+    data: web::Data<AppState<'_>>,
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     let update_id = info.update_id;
 
     match client.get_index(state.index_name).await {
-        Ok(index) => match index.get_update(update_id).await {
+        Ok(index) => match index.get_task(Box::new(update_id)).await {
             Ok(status) => {
                 let response = match status {
-                    UpdateStatus::Processing { content } => StatusResponse {
-                        update_id: content.update_id,
-                        state: format!("processing"),
+                    Task::Processing { content } => StatusResponse {
+                        update_id: content.uid,
+                        state: "processing".to_string(),
                     },
-                    UpdateStatus::Enqueued { content } => StatusResponse {
-                        update_id: content.update_id,
-                        state: format!("enqueued"),
+                    Task::Enqueued { content } => StatusResponse {
+                        update_id: content.uid,
+                        state: "enqueued".to_string(),
                     },
-                    UpdateStatus::Failed { content } => StatusResponse {
-                        update_id: content.update_id,
-                        state: format!("failed"),
+                    Task::Failed { content } => StatusResponse {
+                        update_id: content.task.uid,
+                        state: "failed".to_string(),
                     },
-                    UpdateStatus::Processed { content } => StatusResponse {
-                        update_id: content.update_id,
-                        state: format!("done"),
+                    Task::Succeeded { content } => StatusResponse {
+                        update_id: content.uid,
+                        state: "done".to_string(),
                     },
                 };
 
@@ -643,46 +701,47 @@ async fn check_update<'a>(
             }
             Err(_) => Ok(HttpResponse::Ok().json(StatusResponse {
                 update_id,
-                state: format!("not found"),
+                state: "not found".to_string(),
             })),
         },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[get("/entry/{id}")]
-async fn get_by_id<'a>(
+async fn get_by_id(
     path: web::Path<(String,)>,
-    data: web::Data<AppState<'a>>,
+    data: web::Data<AppState<'_>>,
 ) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => {
             let entry_id = path.into_inner().0;
             let c_entry_id = entry_id.clone();
-            match index.get_document::<Entry>(entry_id).await {
+
+            match index.get_document::<Entry>(&entry_id).await {
                 Ok(entry) => Ok(HttpResponse::Ok().json(entry)),
                 Err(_) => Ok(HttpResponse::NotFound().json(ErrorResponse {
                     reason: format!("No entry found with id: {}", c_entry_id),
                 })),
             }
         }
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[get("/health")]
-async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+async fn health(data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     let meilie_health = client.is_healthy().await;
 
@@ -695,10 +754,12 @@ async fn health<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
 }
 
 #[get("/stats")]
-async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+async fn stats(data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
 
-    let client = Client::new(state.client_url, state.client_secret);
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.get_index(state.index_name).await {
         Ok(index) => match index.get_stats().await {
@@ -711,24 +772,25 @@ async fn stats<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
                 Ok(HttpResponse::Ok().json(stats))
             }
             Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-                reason: format!("No stats for client"),
+                reason: "No stats for client".to_string(),
             })),
         },
-        Err(_) => Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse {
-            reason: format!("No client"),
-        })),
+        Err(_) => client_error(),
     }
 }
 
 #[post("/create_dump")]
-async fn create_dump<'a>(data: web::Data<AppState<'a>>) -> Result<HttpResponse> {
+async fn create_dump(data: web::Data<AppState<'_>>) -> Result<HttpResponse> {
     let state = &data.clone();
-    let client = Client::new(state.client_url, state.client_secret);
+
+    let Ok(client) = Client::new(state.client_url, state.client_secret) else {
+        return client_error();
+    };
 
     match client.create_dump().await {
-        Ok(_) => Ok(HttpResponse::NoContent().body(body::Body::Empty)),
+        Ok(_) => Ok(HttpResponse::new(StatusCode::NO_CONTENT)),
         Err(_) => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-            reason: format!("Failed to create dump"),
+            reason: "Failed to create dump".to_string(),
         })),
     }
 }
@@ -768,7 +830,9 @@ async fn main() -> Result<()> {
             let boxed_index_name = boxed_key(index_name);
 
             // Connect to search client
-            let ms_client = Client::new(boxed_ms_url, boxed_secret_key);
+            let Ok(ms_client) = Client::new(boxed_ms_url, Some(boxed_secret_key)) else {
+                panic!("Client creation must have failed")
+            };
 
             match check_meilisearch(&ms_client, boxed_index_name).await {
                 Ok(_) => {}
@@ -777,7 +841,7 @@ async fn main() -> Result<()> {
 
             let state = web::Data::new(AppState {
                 client_url: boxed_ms_url,
-                client_secret: boxed_secret_key,
+                client_secret: Some(boxed_secret_key),
                 index_name: boxed_index_name,
             });
 
@@ -798,6 +862,7 @@ async fn main() -> Result<()> {
                     .service(config_filter_and_sort)
                     .service(infinite)
                     .service(create)
+                    .service(recreate)
                     .service(edit)
                     .service(check_update)
                     .service(delete)
